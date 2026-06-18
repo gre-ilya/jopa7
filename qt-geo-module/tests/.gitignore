@@ -1,0 +1,10 @@
+build*/
+Makefile
+*.o
+moc_*.cpp
+moc_predefs.h
+.qmake.stash
+geotests
+geotests.exe
+release/
+debug/

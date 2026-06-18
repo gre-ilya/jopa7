@@ -1,0 +1,101 @@
+name: "geo-module"
+
+# Builds and tests the qt-geo-module on Linux and Windows, with clang on both.
+on:
+  push:
+    branches: [ 'claude/**' ]
+    paths:
+      - 'qt-geo-module/**'
+      - '.github/workflows/geo-module.yml'
+  workflow_dispatch: ~
+
+jobs:
+  linux:
+    name: Linux (gcc + clang)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt5 and clang
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qtbase5-dev clang
+
+      - name: Test with gcc
+        working-directory: qt-geo-module/tests
+        run: |
+          qmake
+          make -j2
+          ./geotests
+
+      - name: Build example with gcc
+        working-directory: qt-geo-module/example
+        run: |
+          qmake
+          make -j2
+
+      - name: Test with clang
+        working-directory: qt-geo-module/tests
+        run: |
+          mkdir build-clang && cd build-clang
+          qmake -spec linux-clang ../tests.pro
+          make -j2
+          ./geotests
+
+  windows-clang-mingw:
+    name: Windows (clang, MSYS2 CLANG64)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up MSYS2 CLANG64 (clang + Qt5)
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: CLANG64
+          update: true
+          install: >-
+            mingw-w64-clang-x86_64-clang
+            mingw-w64-clang-x86_64-qt5-base
+            mingw-w64-clang-x86_64-make
+
+      - name: Show toolchain
+        run: |
+          clang++ --version
+          qmake --version
+
+      - name: Build & test with clang (win32-clang-g++)
+        working-directory: qt-geo-module/tests
+        run: |
+          qmake
+          mingw32-make -j2
+          ./geotests.exe
+
+  windows-clang-cl:
+    name: Windows (clang-cl, win32-clang-msvc)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt (msvc2019_64)
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '5.15.2'
+          host: windows
+          target: desktop
+          arch: win64_msvc2019_64
+
+      - name: Set up MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Build & test with clang-cl
+        working-directory: qt-geo-module/tests
+        shell: cmd
+        run: |
+          set "PATH=C:\Program Files\LLVM\bin;%PATH%"
+          clang-cl --version
+          qmake -spec win32-clang-msvc
+          nmake
+          geotests.exe

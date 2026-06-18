@@ -9,6 +9,8 @@
 
 QT       += core gui widgets
 CONFIG   += c++17
+CONFIG   -= debug_and_release debug_and_release_target
+CONFIG   += release
 TEMPLATE  = app
 TARGET    = geofileviewer
 
