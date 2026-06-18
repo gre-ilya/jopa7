@@ -74,8 +74,54 @@ SOURCES += \
     $$GPSBABEL_SRC/src/core/logging.cc \
     $$GPSBABEL_SRC/jeeps/gpsmath.cc
 
-# gbfile.cc uses zlib.
-LIBS += -lz
+# ---------------------------------------------------------------------------
+# Platform defines.
+#   defs.h already defines M_PI itself, so _USE_MATH_DEFINES is not needed.
+# ---------------------------------------------------------------------------
+win32:        DEFINES *= __WIN32__
+win32-msvc*:  DEFINES *= _CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_WARNINGS
+
+# ---------------------------------------------------------------------------
+# zlib.  gbfile.cc uses zlib to read gzip-compressed inputs.  By default we
+# compile GPSBabel's BUNDLED zlib (its own default, "included" mode) so the
+# module is self-contained and builds identically on Windows and Linux with no
+# external dependency.
+#
+#   * Default            -> bundled zlib from $$GPSBABEL_SRC/zlib
+#   * GEOBABEL_ZLIB=system  -> use a system zlib (-lz, needs HAVE_LIBZ headers)
+#   * GEOBABEL_ZLIB=none    -> no zlib; gzip-compressed inputs are unsupported
+#                             (plain .gdb is never gzip-compressed, so this is
+#                              fine if you only read .gdb)
+# ---------------------------------------------------------------------------
+isEmpty(GEOBABEL_ZLIB): GEOBABEL_ZLIB = bundled
+
+equals(GEOBABEL_ZLIB, system) {
+    DEFINES *= HAVE_LIBZ
+    win32-msvc*: LIBS += zlib.lib
+    else:        LIBS += -lz
+} else:equals(GEOBABEL_ZLIB, none) {
+    DEFINES *= ZLIB_INHIBITED
+} else {
+    # bundled (default)
+    INCLUDEPATH *= $$GPSBABEL_SRC/zlib
+    unix: DEFINES *= HAVE_UNISTD_H HAVE_STDARG_H
+    SOURCES += \
+        $$GPSBABEL_SRC/zlib/adler32.c \
+        $$GPSBABEL_SRC/zlib/compress.c \
+        $$GPSBABEL_SRC/zlib/crc32.c \
+        $$GPSBABEL_SRC/zlib/deflate.c \
+        $$GPSBABEL_SRC/zlib/inffast.c \
+        $$GPSBABEL_SRC/zlib/inflate.c \
+        $$GPSBABEL_SRC/zlib/infback.c \
+        $$GPSBABEL_SRC/zlib/inftrees.c \
+        $$GPSBABEL_SRC/zlib/trees.c \
+        $$GPSBABEL_SRC/zlib/uncompr.c \
+        $$GPSBABEL_SRC/zlib/gzlib.c \
+        $$GPSBABEL_SRC/zlib/gzclose.c \
+        $$GPSBABEL_SRC/zlib/gzread.c \
+        $$GPSBABEL_SRC/zlib/gzwrite.c \
+        $$GPSBABEL_SRC/zlib/zutil.c
+}
 
 # ---------------------------------------------------------------------------
 # To support more GPSBabel formats:
