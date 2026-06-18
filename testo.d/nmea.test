@@ -1,0 +1,45 @@
+#
+# Basic NMEA tests
+#
+gpsbabel -i nmea -f ${REFERENCE}/track/nmea -o gpx -F ${TMPDIR}/nmea.gpx
+compare ${REFERENCE}/track/nmea.gpx ${TMPDIR}/nmea.gpx
+gpsbabel -i nmea -f ${REFERENCE}/track/nmea+ms.txt -o gpx -F ${TMPDIR}/nmea+ms.gpx
+compare ${REFERENCE}/track/nmea+ms.gpx ${TMPDIR}/nmea+ms.gpx
+
+#
+# Read an NMEA file  with AMOD 3808 waypoints.  Be sure we read the points.
+# Also write as a "normal" NMEA to be sure AMOD extensions don't leak.
+#
+gpsbabel -i nmea -f ${REFERENCE}/track/amod-nmea -o gpx -F ${TMPDIR}/amod-out.gpx -o nmea -F ${TMPDIR}/amod-pure
+compare ${REFERENCE}/track/amod.gpx ${TMPDIR}/amod-out.gpx
+compare ${REFERENCE}/track/amod-cleansed ${TMPDIR}/amod-pure
+
+# Test GPWPL waypoints.  Verify we can write first.
+gpsbabel -i geo -f ${REFERENCE}/geocaching.loc -o nmea -F ${TMPDIR}/waypoints.nmea
+compare ${REFERENCE}/waypoints.nmea ${TMPDIR}/waypoints.nmea 
+# Now read our reference file and prove that our writer will make one to match.
+gpsbabel -i nmea -f ${REFERENCE}/waypoints.nmea -o nmea -F ${TMPDIR}/wayout.nmea
+compare ${REFERENCE}/waypoints.nmea ${TMPDIR}/wayout.nmea 
+
+# test date fiddling
+gpsbabel -t -i nmea,date=20190308 -f ${REFERENCE}/track/adddate.nmea -o unicsv,utc=0 -F ${TMPDIR}/adddate.csv
+compare ${REFERENCE}/track/adddate.csv ${TMPDIR}/adddate.csv
+gpsbabel -t -i nmea -f ${REFERENCE}/track/backfilldate.nmea -o unicsv,utc=0 -F ${TMPDIR}/backfilldate.csv
+compare ${REFERENCE}/track/backfilldate.csv ${TMPDIR}/backfilldate.csv
+gpsbabel -t -i nmea -f ${REFERENCE}/track/backfilldate2.nmea -o unicsv,utc=0 -F ${TMPDIR}/backfilldate2.csv
+compare ${REFERENCE}/track/backfilldate2.csv ${TMPDIR}/backfilldate2.csv
+
+gpsbabel -i gpx -f ${REFERENCE}/track/nmeadate.gpx -o nmea -F ${TMPDIR}/nmeadate.nmea
+compare ${REFERENCE}/track/nmeadate.nmea ${TMPDIR}/nmeadate.nmea
+
+
+gpsbabel -t -i nmea,date=20190308 -f ${REFERENCE}/track/addmultipledaysfwd.nmea -o unicsv,utc=0 -F ${TMPDIR}/addmultipledaysfwd.csv
+compare ${REFERENCE}/track/addmultipledays.csv ${TMPDIR}/addmultipledaysfwd.csv
+gpsbabel -t -i nmea -f ${REFERENCE}/track/addmultipledaysbkw.nmea -o unicsv,utc=0 -F ${TMPDIR}/addmultipledaysbkw.csv
+compare ${REFERENCE}/track/addmultipledays.csv ${TMPDIR}/addmultipledaysbkw.csv
+gpsbabel -t -i nmea -f ${REFERENCE}/track/addmultipledaysmid.nmea -o unicsv,utc=0 -F ${TMPDIR}/addmultipledaysmid.csv
+compare ${REFERENCE}/track/addmultipledays.csv ${TMPDIR}/addmultipledaysmid.csv
+
+# test date time parsing
+gpsbabel -t -i nmea -f ${REFERENCE}/track/nmeadatetime.nmea -o unicsv,utc=0 -F ${TMPDIR}/nmeadatetime.csv
+compare ${REFERENCE}/track/nmeadatetime.csv ${TMPDIR}/nmeadatetime.csv

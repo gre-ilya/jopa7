@@ -1,0 +1,27 @@
+#!/bin/sh
+
+#
+# Testing the 'nuketypes' filter is funky.
+# Convert a GPX file to GPX to eliminate jitter.
+# Then nuke the all but the three individual types, merge the result together
+# and verify we got the original back.
+#
+gpsbabel -i gpx -f ${REFERENCE}/gdb-sample.gpx -o gpx -F ${TMPDIR}/alltypes.gpx
+gpsbabel -i gpx -f ${TMPDIR}/alltypes.gpx -x nuketypes,tracks,routes -o gpx -F ${TMPDIR}/wpts.gpx
+gpsbabel -i gpx -f ${TMPDIR}/alltypes.gpx -x nuketypes,waypoints,routes -o gpx -F ${TMPDIR}/trks.gpx
+gpsbabel -i gpx -f ${TMPDIR}/alltypes.gpx -x nuketypes,waypoints,tracks -o gpx -F ${TMPDIR}/rtes.gpx
+gpsbabel -i gpx -f ${TMPDIR}/wpts.gpx -f ${TMPDIR}/trks.gpx -f ${TMPDIR}/rtes.gpx -o gpx -F ${TMPDIR}/merged.gpx
+compare ${TMPDIR}/alltypes.gpx ${TMPDIR}/merged.gpx
+
+#
+# gzipped file i/o (reading only)
+#
+gpsbabel -i nmea -f ${REFERENCE}/waypoints.nmea.gz -o nmea -F ${TMPDIR}/waypoints.nmea
+compare ${REFERENCE}/waypoints.nmea ${TMPDIR}/waypoints.nmea
+
+#
+# GPX version detection
+#
+gpsbabel -i gpx -f ${REFERENCE}/expertgps.gpx -x nuketypes,routes,tracks -x transform,rte=wpt,del=y -o gpx -F ${TMPDIR}/transform-ver.gpx
+compare ${REFERENCE}/transform-rte.gpx ${TMPDIR}/transform-ver.gpx
+

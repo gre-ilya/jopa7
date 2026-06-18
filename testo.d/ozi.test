@@ -1,0 +1,27 @@
+
+# OZI (OziExplorer 1.1) file format
+rm -f ${TMPDIR}/oz.wpt ${TMPDIR}/ozi.wpt
+gpsbabel -i ozi -f ${REFERENCE}/ozi.wpt -o ozi -F ${TMPDIR}/oz.wpt
+gpsbabel -i ozi -f ${TMPDIR}/oz.wpt -o ozi -F ${TMPDIR}/ozi.wpt
+compare ${TMPDIR}/ozi.wpt ${REFERENCE}
+
+# Test Ozi routes.
+gpsbabel -i ozi -f ${REFERENCE}/route/ozi.rte -o gpx -F ${TMPDIR}/ozi~gpx.gpx
+compare ${TMPDIR}/ozi~gpx.gpx ${REFERENCE}/route/
+gpsbabel -i ozi -f ${REFERENCE}/route/ozi.rte -o ozi -F ${TMPDIR}/ozi~rte.rte
+compare ${REFERENCE}/route/ozi~rte.rte ${TMPDIR}/ozi~rte.rte
+
+# Test Ozi tracks.
+gpsbabel -i ozi -f ${REFERENCE}/track/20070813_short.plt -o gpx -F ${TMPDIR}/20070813_short~plt.gpx
+compare ${REFERENCE}/track/20070813_short~plt.gpx ${TMPDIR}/20070813_short~plt.gpx
+gpsbabel -i ozi -f ${REFERENCE}/track/20070813_short.plt -o ozi -F ${TMPDIR}/20070813_short~plt.plt
+compare ${REFERENCE}/track/20070813_short~plt.plt ${TMPDIR}/20070813_short~plt.plt
+
+# test ozi tracks with multilple tracks which will be written to separate files
+gpsbabel -i gpx -f ${REFERENCE}/track/ozitracks.gpx -o ozi -F ${TMPDIR}/ozitracks~gpx.plt
+compare ${REFERENCE}/track/ozitracks~gpx.plt ${TMPDIR}/ozitracks~gpx.plt
+compare ${REFERENCE}/track/ozitracks~gpx-1.plt ${TMPDIR}/ozitracks~gpx-1.plt
+compare ${REFERENCE}/track/ozitracks~gpx-2.plt ${TMPDIR}/ozitracks~gpx-2.plt
+
+# test ozi with no output making sure we don't throw an error or segmentation fault.
+gpsbabel -i gpx -f ${REFERENCE}/track/ozitracks.gpx -x nuketypes,waypoints,tracks,routes -o ozi -F ${TMPDIR}/empty.plt

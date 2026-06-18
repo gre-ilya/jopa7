@@ -1,0 +1,61 @@
+{
+   <Fedora18: Qt's use of libuuc leaks.>
+   Memcheck:Leak
+   ...
+   obj:*libicuuc*
+}
+{
+   <Fedora18: XmlStreamAttributes has an internal leak.>
+   Memcheck:Leak
+   ...
+   fun:_ZL7tag_wptRK20QXmlStreamAttributes
+}
+
+{
+   <F18 internal leak for locales called from toDouble>
+   Memcheck:Leak
+   ...
+   fun:_ZN14QLocalePrivate19updateSystemPrivateEv
+}
+
+{
+   <F18 many errors from dlopened objects.
+   Memcheck:Leak
+   ...
+   fun:dlopen_doit
+}
+
+{
+   <F18 leak in QIODevice::QIODevice ctor>
+   Memcheck:Leak
+   ...
+   fun:_ZN9QIODeviceC1ER16QIODevicePrivateP7QObject
+}
+
+
+{
+   <F18 leak in QTextStream::QTextStream(QIODevice*) in google.cc >
+   Memcheck:Leak
+   ...
+   fun:_ZN11QTextStreamC1EP9QIODevice
+}
+
+{
+   <ubuntu precise with qt 4.8.1 on travis>
+   Memcheck:Leak
+   fun:memalign
+   fun:posix_memalign
+   obj:/lib/x86_64-linux-gnu/libglib-2.0.so.0.3200.4
+   fun:g_slice_alloc
+   fun:g_slice_alloc0
+   fun:g_thread_self
+   fun:g_main_context_acquire
+   fun:g_main_context_push_thread_default
+   fun:_ZN27QEventDispatcherGlibPrivateC1EP13_GMainContext
+   fun:_ZN20QEventDispatcherGlibC1EP7QObject
+   fun:_ZN23QCoreApplicationPrivate21createEventDispatcherEv
+   fun:_ZN16QCoreApplication4initEv
+   fun:_ZN16QCoreApplicationC1ERiPPci
+   fun:main
+}
+

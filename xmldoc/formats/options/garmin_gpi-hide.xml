@@ -1,0 +1,10 @@
+<para>
+   For a large list of points it may be desirable if
+   no bitmaps are displayed on the device. With this option no bitmaps
+   are stored and displayed.
+</para>
+<para>
+  <userinput>
+    gpsbabel -i gpx -f "My Points.gpx" -o garmin_gpi,hide -F "My Points.gpi"
+  </userinput>
+</para>

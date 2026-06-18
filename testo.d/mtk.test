@@ -1,0 +1,46 @@
+#
+# MTK logger tests
+#
+rm -f ${TMPDIR}/mtk_logger.*
+gpsbabel -t -w -i mtk-bin,csv=${TMPDIR}/mtk_logger.csv -f ${REFERENCE}/track/mtk_logger.bin -o gpx -F ${TMPDIR}/mtk_logger.gpx
+compare ${REFERENCE}/track/mtk_logger.gpx ${TMPDIR}/mtk_logger.gpx
+## CSV compare needs to be done with '-w' - ignore whitespace.
+compare ${REFERENCE}/track/mtk_logger.csv ${TMPDIR}/mtk_logger.csv
+
+#
+# MTK logger tests (Holux M-241)
+#
+rm -f ${TMPDIR}/mtk_logger_m241.*
+gpsbabel -t -w -i m241-bin,csv=${TMPDIR}/mtk_logger_m241.csv -f ${REFERENCE}/track/mtk_logger_m241.bin -o gpx -F ${TMPDIR}/mtk_logger_m241.gpx
+compare ${REFERENCE}/track/mtk_logger_m241.gpx ${TMPDIR}/mtk_logger_m241.gpx
+## CSV compare needs to be done with '-w' - ignore whitespace.
+compare_with_alternate ${REFERENCE}/track/mtk_logger_m241.csv ${REFERENCE}/track/mtk_logger_m241_alternate.csv ${TMPDIR}/mtk_logger_m241.csv
+
+#
+# MTK logger tests (Holux M-241 with multiple tracks)
+#
+rm -f ${TMPDIR}/mtk_logger_m241_multiple_tracks.*
+gpsbabel -t -w -i m241-bin -f ${REFERENCE}/track/mtk_logger_m241_multiple_tracks.bin -o gpx -F ${TMPDIR}/mtk_logger_m241_multiple_tracks.gpx
+compare ${REFERENCE}/track/mtk_logger_m241_multiple_tracks.gpx ${TMPDIR}/mtk_logger_m241_multiple_tracks.gpx
+
+#
+# MTK logger tests (Holux GPsport-245 - using m241 module)
+#
+rm -f ${TMPDIR}/mtk_logger_gp245.*
+gpsbabel -t -w -i m241-bin -f ${REFERENCE}/track/mtk_logger_gp245.bin -o gpx -F ${TMPDIR}/mtk_logger_gp245.gpx
+compare ${REFERENCE}/track/mtk_logger_gp245.gpx ${TMPDIR}/mtk_logger_gp245.gpx
+
+#
+# MTK logger tests (Holux GPsport-245 firmware version v2.00)
+#
+rm -f ${TMPDIR}/mtk_logger_gp245_fw_v2.*
+gpsbabel -t -w -i m241-bin -f ${REFERENCE}/track/mtk_logger_gp245_fw_v2.bin -o gpx -F ${TMPDIR}/mtk_logger_gp245_fw_v2.gpx
+compare ${REFERENCE}/track/mtk_logger_gp245_fw_v2.gpx ${TMPDIR}/mtk_logger_gp245_fw_v2.gpx
+
+#
+# BT-Q1000XT GPS made by Qstarz
+# This has SNR data but no ELE or AZI data.
+#
+rm -f ${TMPDIR}/mtk_logger_bt-qt1000xt.csv
+gpsbabel -i mtk-bin,csv=${TMPDIR}/mtk_logger_bt-qt1000xt.csv -f ${REFERENCE}/track/mtk_logger_bt-qt1000xt.bin
+compare ${REFERENCE}/track/mtk_logger_bt-qt1000xt.csv ${TMPDIR}/mtk_logger_bt-qt1000xt.csv

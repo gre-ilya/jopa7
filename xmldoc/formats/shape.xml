@@ -1,0 +1,21 @@
+<para>This format reads and writes ESRI shapefiles.
+When reading a shapefile Point, PointZ and PointM shapes are
+mapped to waypoints.  PolyLine(Arc), PolyLineZ(ArcZ) and PolyLineM(ArcM) shapes are mapped to routes.
+When writing a shapefile waypoints are mapped to Point shapes and routes or tracks
+are mapped to PolyLine(Arc) shapes depending on the the objective given by the -w, -r or -t option.
+Because shapefiles can only contain one type of shape these options are mutually exclusive.
+</para>
+<para>
+The minimum shape file set for read consists of a .shp, .shx and .dbf file.  A .cpg file will be checked if it exists.
+When passing a file name for a set of shape files the name of any of the files from this set can be used.  The files must be unzipped.
+</para>
+<para>
+On read any projection format in a .prj file will be ignored.  This may or may not result in a misinterpretation of the data.
+GPSBabel expects the coordinate system used in the shapefile to be a Geographic Coordinate System with units in decimal degrees measuring degrees of longitude (x-coordinates) and degrees of latitude (y-coordinates), e.g. WGS 84.
+To transform from the spatial reference system described in the .prj file to the Geographic Coordinate System WGS 84 you can use the GDAL utility ogr2ogr, e.g. "ogr2ogr -t_srs EPSG:4326 output.shp input.shp".
+</para>
+<para>
+On read an attempt will be made to check the code page used by the .dbf file and
+report if it is not UTF-8.  However, character data within the .dbf file is always processed as if it was encoded with UTF-8.
+If the .dbf file was using a different code page this may or may not cause a problem.
+</para>

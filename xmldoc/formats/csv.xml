@@ -1,0 +1,38 @@
+
+      <para> There are a billion variants of Comma Separated Value
+data.  This is the one specifically that makes <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.delorme.com">DeLorme</link> <trademark>S&amp;A Deluxe 9</trademark> happy. It's
+also a very simple program and useful for many other programs like
+spreadsheets, but contains only a very minimal information. For general
+purpose use, you'll probably be more happy with our
+<link linkend="fmt_unicsv">universal csv (unicsv)</link> format.</para>
+      <para> CSV is also the correct format for
+	<trademark>Lowrance MapCreate</trademark>,
+their commercial mapping program, or GDM6 (their free waypoint
+manager) for iFinder which is available at <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.lowrance.com/Software/GDM6/Default.asp">lowrance.com</link>
+         </para>
+    <para>
+	On write, this format writes simple "latitude, longitude, name" lines, but
+on read it  will read anything supported by our <link linkend="style_def_lathuman">human readable</link> definition.
+    </para>
+    <para>
+       For something-separated data that has headers identifying the various
+	fields, see our <link linkend="fmt_unicsv">universal csv</link> format.
+    </para>
+<example xml:id="csv_example"><title>Example 'csv' file</title>
+<programlisting>
+35.97203, -87.13470, Mountain Bike Heaven by susy1313
+36.09068, -86.67955, The Troll by a182pilot &amp; Family
+35.99627, -86.62012, Dive Bomber by JoGPS &amp; family
+36.03848, -86.64862, FOSTER by JoGPS &amp; Family
+</programlisting>
+<para>
+that same data written in unicsv format would appear as:
+</para>
+<programlisting>
+No,Latitude,Longitude,Name,Altitude,Description,Symbol,URL
+1,35.972033,-87.134700,"GCEBB",0.0,"Mountain Bike Heaven by susy1313","geocache","http://www.geocaching.com/seek/cache_details.asp?ID=3771"
+2,36.090683,-86.679550,"GC1A37",0.0,"The Troll by a182pilot &amp; Family","geocache","http://www.geocaching.com/seek/cache_details.asp?ID=6711"
+3,35.996267,-86.620117,"GC1C2B",0.0,"Dive Bomber by JoGPS &amp; family","geocache","http://www.geocaching.com/seek/cache_details.asp?ID=7211"
+4,36.038483,-86.648617,"GC25A9",0.0,"FOSTER by JoGPS &amp; Family","geocache","http://www.geocaching.com/seek/cache_details.asp?ID=9641"
+</programlisting>
+</example>

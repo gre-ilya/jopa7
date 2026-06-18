@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.0" creator="GPSBabel - https://www.gpsbabel.org" xmlns="http://www.topografix.com/GPX/1/0">
+  <time>1970-01-01T00:00:00Z</time>
+  <bounds minlat="25.600000000" minlon="-112.900000000" maxlat="48.858370100" maxlon="2.292292600"/>
+  <wpt lat="48.858370100" lon="2.292292600">
+    <time>2018-07-06T05:04:03.250Z</time>
+    <name>b</name>
+    <cmt>a</cmt>
+    <desc>a</desc>
+  </wpt>
+  <wpt lat="48.858370100" lon="2.292292600">
+    <time>2018-07-06T05:04:03.750Z</time>
+    <name>a</name>
+    <cmt>b</cmt>
+    <desc>b</desc>
+  </wpt>
+  <wpt lat="48.858370100" lon="2.292292600">
+    <time>2018-07-07T05:04:03.750Z</time>
+    <name>d</name>
+    <cmt>c</cmt>
+    <desc>c</desc>
+  </wpt>
+  <wpt lat="48.858370100" lon="2.292292600">
+    <time>2018-07-05T05:04:03.750Z</time>
+    <name>c</name>
+    <cmt>d</cmt>
+    <desc>d</desc>
+  </wpt>
+  <rte>
+    <name>b</name>
+    <desc>c</desc>
+    <number>11163</number>
+    <rtept lat="47.600000000" lon="-89.900000000">
+      <name>RPT001</name>
+    </rtept>
+  </rte>
+  <rte>
+    <name>a</name>
+    <desc>b</desc>
+    <number>15939</number>
+    <rtept lat="47.700000000" lon="-89.800000000">
+      <name>RPT002</name>
+    </rtept>
+  </rte>
+  <rte>
+    <name>c</name>
+    <desc>a</desc>
+    <number>10607</number>
+    <rtept lat="47.800000000" lon="-89.700000000">
+      <name>RPT003</name>
+    </rtept>
+  </rte>
+  <rte>
+    <name>d</name>
+    <desc>d</desc>
+    <number>24282</number>
+    <rtept lat="47.900000000" lon="-89.600000000">
+      <name>RPT004</name>
+    </rtept>
+  </rte>
+  <trk>
+    <name>d</name>
+    <desc>b</desc>
+    <number>31163</number>
+    <trkseg>
+      <trkpt lat="25.600000000" lon="-112.900000000"/>
+    </trkseg>
+  </trk>
+  <trk>
+    <name>b</name>
+    <desc>d</desc>
+    <number>15939</number>
+    <trkseg>
+      <trkpt lat="25.700000000" lon="-112.800000000"/>
+    </trkseg>
+  </trk>
+  <trk>
+    <name>a</name>
+    <desc>a</desc>
+    <number>607</number>
+    <trkseg>
+      <trkpt lat="25.800000000" lon="-112.700000000"/>
+    </trkseg>
+  </trk>
+  <trk>
+    <name>c</name>
+    <desc>c</desc>
+    <number>24282</number>
+    <trkseg>
+      <trkpt lat="25.900000000" lon="-112.600000000"/>
+    </trkseg>
+  </trk>
+</gpx>

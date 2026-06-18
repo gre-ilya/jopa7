@@ -1,0 +1,8 @@
+#
+# Dop filter test
+#
+rm -f ${TMPDIR}/dop*
+gpsbabel -i gpx -f ${REFERENCE}/dop-test.gpx -x discard,hdop=50 -o openoffice -F ${TMPDIR}/dop-hdop.csv
+compare ${REFERENCE}/dop-hdop.csv ${TMPDIR}/dop-hdop.csv
+gpsbabel -i gpx -f ${REFERENCE}/dop-test.gpx -x discard,vdop=50 -o openoffice -F ${TMPDIR}/dop-vdop.csv
+compare ${REFERENCE}/dop-vdop.csv ${TMPDIR}/dop-vdop.csv

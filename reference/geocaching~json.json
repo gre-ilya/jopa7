@@ -1,0 +1,149 @@
+{
+    "features": [
+        {
+            "geometry": {
+                "coordinates": [
+                    -87.1347,
+                    35.972033333
+                ],
+                "type": "Point"
+            },
+            "properties": {
+                "description": "Mountain Bike Heaven by susy1313",
+                "name": "GCEBB",
+                "url": "http://www.geocaching.com/seek/cache_details.asp?ID=3771",
+                "urlname": "Cache Details"
+            },
+            "type": "Feature"
+        },
+        {
+            "geometry": {
+                "coordinates": [
+                    -86.67955,
+                    36.090683333
+                ],
+                "type": "Point"
+            },
+            "properties": {
+                "description": "The Troll by a182pilot & Family",
+                "name": "GC1A37",
+                "url": "http://www.geocaching.com/seek/cache_details.asp?ID=6711",
+                "urlname": "Cache Details"
+            },
+            "type": "Feature"
+        },
+        {
+            "geometry": {
+                "coordinates": [
+                    -86.620116667,
+                    35.996266667
+                ],
+                "type": "Point"
+            },
+            "properties": {
+                "description": "Dive Bomber by JoGPS & family",
+                "name": "GC1C2B",
+                "url": "http://www.geocaching.com/seek/cache_details.asp?ID=7211",
+                "urlname": "Cache Details"
+            },
+            "type": "Feature"
+        },
+        {
+            "geometry": {
+                "coordinates": [
+                    -86.648616667,
+                    36.038483333
+                ],
+                "type": "Point"
+            },
+            "properties": {
+                "description": "FOSTER by JoGPS & Family",
+                "name": "GC25A9",
+                "url": "http://www.geocaching.com/seek/cache_details.asp?ID=9641",
+                "urlname": "Cache Details"
+            },
+            "type": "Feature"
+        },
+        {
+            "geometry": {
+                "coordinates": [
+                    -86.741766667,
+                    36.112183333
+                ],
+                "type": "Point"
+            },
+            "properties": {
+                "description": "Logan Lighthouse by JoGps & Family",
+                "name": "GC2723",
+                "url": "http://www.geocaching.com/seek/cache_details.asp?ID=10019",
+                "urlname": "Cache Details"
+            },
+            "type": "Feature"
+        },
+        {
+            "geometry": {
+                "coordinates": [
+                    -86.790516667,
+                    36.064083333
+                ],
+                "type": "Point"
+            },
+            "properties": {
+                "description": "Ganier Cache by Susy1313",
+                "name": "GC2B71",
+                "url": "http://www.geocaching.com/seek/cache_details.asp?ID=11121",
+                "urlname": "Cache Details"
+            },
+            "type": "Feature"
+        },
+        {
+            "geometry": {
+                "coordinates": [
+                    -86.809733333,
+                    36.087766667
+                ],
+                "type": "Point"
+            },
+            "properties": {
+                "description": "Shy's Hill by FireFighterEng33",
+                "name": "GC309F",
+                "url": "http://www.geocaching.com/seek/cache_details.asp?ID=12447",
+                "urlname": "Cache Details"
+            },
+            "type": "Feature"
+        },
+        {
+            "geometry": {
+                "coordinates": [
+                    -86.892,
+                    36.0575
+                ],
+                "type": "Point"
+            },
+            "properties": {
+                "description": "GittyUp by JoGPS / Warner Parks",
+                "name": "GC317A",
+                "url": "http://www.geocaching.com/seek/cache_details.asp?ID=12666",
+                "urlname": "Cache Details"
+            },
+            "type": "Feature"
+        },
+        {
+            "geometry": {
+                "coordinates": [
+                    -86.867283333,
+                    36.0828
+                ],
+                "type": "Point"
+            },
+            "properties": {
+                "description": "Inlighting by JoGPS / Warner Parks",
+                "name": "GC317D",
+                "url": "http://www.geocaching.com/seek/cache_details.asp?ID=12669",
+                "urlname": "Cache Details"
+            },
+            "type": "Feature"
+        }
+    ],
+    "type": "FeatureCollection"
+}

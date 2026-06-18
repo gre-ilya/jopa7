@@ -1,0 +1,4 @@
+<para>
+This option causes the nuketypes filter to discard all waypoints that are not
+associated with a track or route.
+</para>

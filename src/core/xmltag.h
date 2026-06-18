@@ -1,0 +1,70 @@
+/*
+    Copyright (C) 2002-2013 Robert Lipe, gpsbabel.org
+
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+ */
+#ifndef SRC_CORE_XMLTAG_H
+#define SRC_CORE_XMLTAG_H
+
+#include <QString>               // for QString
+#include <QStringView>           // for QStringView
+#include <QXmlStreamAttributes>  // for QXmlStreamAttributes
+
+#include "formspec.h"            // for FormatSpecificData, FsType
+
+
+class XmlTag
+{
+public:
+
+  /* Member Functions */
+
+  XmlTag* xml_findnext(const XmlTag* root, QStringView name);
+  XmlTag* xml_findfirst(QStringView name);
+  QString xml_attribute(const QString& attrname) const;
+
+  /* Data Members */
+
+  QString tagname;
+  QString cdata;
+  QString parentcdata;
+  QXmlStreamAttributes attributes;
+  XmlTag* parent{nullptr};
+  XmlTag* sibling{nullptr};
+  XmlTag* child{nullptr};
+
+private:
+
+  /* Member Functions */
+
+  XmlTag* xml_next(const XmlTag* root);
+};
+
+struct fs_xml : FormatSpecificData {
+  explicit fs_xml(FsType type) : FormatSpecificData(type) {}
+private:
+  fs_xml(const fs_xml&) = default;
+public:
+  fs_xml& operator=(const fs_xml&) = delete;
+  fs_xml(fs_xml&&) = delete;
+  fs_xml& operator=(fs_xml&&) = delete;
+  ~fs_xml() override;
+
+  fs_xml* clone() const override;
+
+  XmlTag* tag{nullptr};
+};
+#endif // SRC_CORE_XMLTAG_H

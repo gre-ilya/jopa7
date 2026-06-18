@@ -1,0 +1,4 @@
+<para>
+This option instructs GPSBabel to drop hidden (calculated) points from
+routes.  These points are not converted to waypoints or route points.
+</para>

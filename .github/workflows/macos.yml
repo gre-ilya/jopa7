@@ -1,0 +1,104 @@
+name: "macos"
+
+on:
+  push:
+    branches: [ '**']
+  pull_request:
+    # The branches below must be a subset of the branches above
+    branches: [ master ]
+  schedule:
+    - cron: '27 4 * * 2'
+  workflow_dispatch: ~
+
+jobs:
+  macos:
+    name: macOS Build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - QT_VERSION: '5.15.2'
+            XCODE_VERSION: '12.5.1'
+            GENERATOR: 'Ninja'
+            RELEASE: false
+            os: macos-11
+          - QT_VERSION: '6.2.4'
+            XCODE_VERSION: '13.4.1'
+            GENERATOR: 'Xcode'
+            RELEASE: false
+            os: macos-12
+          - QT_VERSION: '6.2.4'
+            XCODE_VERSION: '13.4.1'
+            GENERATOR: 'Ninja'
+            RELEASE: true
+            os: macos-12
+          - QT_VERSION: '6.5.3'
+            XCODE_VERSION: '14.2'
+            GENERATOR: 'Ninja'
+            RELEASE: false
+            os: macos-12
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Cache Qt
+      uses: actions/cache@v3
+      id: cache
+      with:
+        path: ~/Cache
+        key: ${{ runner.os }}-${{ matrix.QT_VERSION }}-${{ secrets.CACHE_VERSION }}
+
+    - name: Qt install setup
+      if: steps.cache.outputs.cache-hit != 'true'
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Qt install
+      if: steps.cache.outputs.cache-hit != 'true'
+      env:
+        TRAVIS_BUILD_DIR: ${{ github.workspace }}
+      run: |
+        ./tools/travis_install_osx ${{ matrix.QT_VERSION }} aqt
+
+    - name: Brew install
+      if: matrix.GENERATOR == 'Ninja'
+      run: |
+        # update/upgrade is causing issues
+        # https://github.com/orgs/Homebrew/discussions/3895
+        # https://github.com/actions/setup-python/issues/577
+        # https://github.com/actions/runner-images/issues/6459
+        # https://github.com/actions/runner-images/issues/6507
+        # https://github.com/actions/runner-images/issues/2322
+        # brew update # skip update for now to avoid link issues AND many slow dependency upGRADES.
+        brew install ninja
+        brew install docbook docbook-xsl fop gnu-sed
+        brew install jing-trang
+
+    - name: Script
+      env:
+        XML_CATALOG_FILES: /usr/local/etc/xml/catalog
+      run: |
+        source ${HOME}/Cache/qt-${{ matrix.QT_VERSION }}.env
+        sudo xcode-select --switch /Applications/Xcode_${{ matrix.XCODE_VERSION }}.app
+        ./tools/ci_script_osx.sh . ${{ matrix.QT_VERSION }} ${{ matrix.GENERATOR }}
+
+    - name: Deploy
+      # This only handles continous releases now, for other events artifacts may be saved in
+      # the 'Upload Artifacts' step.
+      if: ( github.event_name == 'push' ) && ( github.ref == 'refs/heads/master' ) && matrix.RELEASE
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        RELEASE_NAME: Continuous-${{ runner.os }}
+      run: |
+        echo GITHUB_REF: $GITHUB_REF
+        ./tools/uploadtool/upload_github.sh gui/GPSBabel-*.dmg
+
+    - name: 'Upload Artifacts'
+      uses: actions/upload-artifact@v3
+      with:
+        name: MacOS_Installer ${{ join(matrix.*) }}
+        path: gui/GPSBabel-*.dmg
+        retention-days: 7

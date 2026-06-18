@@ -1,0 +1,6 @@
+<para>
+	When reading <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.geocaching.com"> Groundspeak Pocket Queries </link>, the <option>logpoint</option> option creates additional waypoints from the log entries.
+</para>
+<para>
+ 	A typical use for this is to get coordinates read from "corrected coordinates" logs.
+</para>

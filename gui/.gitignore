@@ -1,0 +1,12 @@
+/GPSBabel[0-9]*.[0-9]*.[0-9]*/
+/GPSBabel[0-9]*.[0-9]*.[0-9]*.tar.bz2
+/GPSBabelFE/
+/GPSBabelFE.app/
+/gpsbabelfe_autogen/
+/Makefile
+/objects/
+/tmp/
+/release/
+/debug/
+/gbversion.h
+/setup.iss

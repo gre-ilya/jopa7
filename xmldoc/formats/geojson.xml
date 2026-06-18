@@ -1,0 +1,30 @@
+<para>
+This module supports a subset of the <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://geojson.org/">GeoJSON</link> format.
+</para>
+<para>
+GeoJSON is a poor fit for GPSBabel's internal data structures as GPSBabel
+was designed more around common GPS features (waypoints, tracks, routes)
+than about GIS-style concepts like MultiPolygons or Geometry Collections.
+In reality, for all but the most simple uses (such as converting a format
+that GPSBabel supports well to something like Leaflet, you should not expect
+high fidelity transfers through this format.
+</para>
+<para>
+Waypoints are mapped to a FeatureCollection of Points.
+The properties for name and description are written, where available.
+Tracks are converted to a LineString.
+MultiPoint are converted to Waypoints.
+LineString, Polygon and MultiPolygon are converted to routes.
+MultiLineString are converted to tracks.
+</para>
+<para>
+The potentially nested/recursive nature of GeoJSON in general would be
+an awkward implementation.
+</para>
+<para>
+Initial development was free-handed by looking at the <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://tools.ietf.org/html/rfc7946 ">GeoJSON RFC</link>. Corner cases were handled by
+using <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.gdal.org/ogr2ogr.html">GDAL's ogr2ogr</link>
+to convert GPX to JSON and compare the output. The results were then
+ <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://geojsonlint.com/">JSON validated</link> and viewed on
+ <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://geojson.io/">JSON web viewer</link>.
+</para>

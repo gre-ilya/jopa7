@@ -1,0 +1,83 @@
+#
+# tracks filter tests
+#
+
+rm -f ${TMPDIR}/trackfilter*
+
+gpsbabel -t -i gpx -f ${REFERENCE}/track/trackfilter.gpx -x track,pack,split,title="LOG-%Y%m%d" -o gpx -F ${TMPDIR}/trackfilter.gpx
+compare ${REFERENCE}/track/trackfilter.gpx ${TMPDIR}/trackfilter.gpx
+
+gpsbabel -t -i gpx -f ${REFERENCE}/track/trackfilter.gpx -x track,pack,split,title="LOG" -o gpx -F ${TMPDIR}/trackfilter1.gpx
+compare ${REFERENCE}/track/trackfilter.gpx ${TMPDIR}/trackfilter1.gpx
+
+gpsbabel -t -i gpx -f ${REFERENCE}/track/trackfilter.gpx -x track,pack,split,sdistance=0.1k  -o gpx -F ${TMPDIR}/trackfilter2.gpx
+compare ${REFERENCE}/track/trackfilter-sdistance.gpx ${TMPDIR}/trackfilter2.gpx
+
+gpsbabel -t -i gpx -f ${REFERENCE}/track/trackfilter.gpx -x track,pack,sdistance=0.1k,split=5m,title=%Y%m%d  -o gpx -F ${TMPDIR}/trackfilter-sdistance2.gpx
+compare ${REFERENCE}/track/trackfilter-sdistance2.gpx ${TMPDIR}/trackfilter-sdistance2.gpx
+
+gpsbabel -i gpx -f ${REFERENCE}/track/trackfilter.gpx -x track,pack,title=LOG-%FT%TZ -o gpx -F ${TMPDIR}/trackfilter3.gpx
+compare ${REFERENCE}/track/trackfilter3.gpx ${TMPDIR}/trackfilter3.gpx
+
+# Exercise the 'faketime' filter.  The middle of the three points has
+# time so we can exercise the 'forced' option, too.
+gpsbabel -t -i unicsv,utc -f ${REFERENCE}/track/trackfilter_faketime.txt -x track,faketime=20100506060000+5 -o gpx -F ${TMPDIR}/ft.gpx
+compare ${REFERENCE}/track/trackfilter_faketime.gpx ${TMPDIR}/ft.gpx
+gpsbabel -t -i unicsv -f ${REFERENCE}/track/trackfilter_faketime.txt -x track,faketime=f20100506060000+5 -o gpx -F ${TMPDIR}/ftf.gpx
+compare ${REFERENCE}/track/trackfilter_faketime_forced.gpx ${TMPDIR}/ftf.gpx
+
+# reverse the track
+gpsbabel -t -i gpx -f ${REFERENCE}/track/trk_reverse_test-fwd.gpx -x reverse -o gpx -F ${TMPDIR}/trk_reverse_test-rev.gpx
+compare ${REFERENCE}/track/trk_reverse_test-rev.gpx ${TMPDIR}/trk_reverse_test-rev.gpx
+
+# seg2trk filter test
+gpsbabel -i gpx -f ${REFERENCE}/track/seg2trk_test.gpx -x track,seg2trk -o gpx -F ${TMPDIR}/seg2trk_test-seg.gpx
+compare ${REFERENCE}/track/seg2trk_test-seg.gpx ${TMPDIR}/seg2trk_test-seg.gpx
+
+# Verify that the merge/split code is numerically stable on subsecond input.
+# This would fail on GPSBabel <= 1.4.4 which didn't handle subsecond times
+# correctly in this filter.  Observe that the times in split-split are
+# always ascending and the order of the input track names is preserved.
+
+gpsbabel -i gpx -f ${REFERENCE}/track/split-raw.gpx -x track,merge,split=1m -o gpx -F ${TMPDIR}/split-raw-split.gpx
+compare ${REFERENCE}/track/split-split.gpx ${TMPDIR}/split-raw-split.gpx
+
+gpsbabel -t -i gpx -f ${REFERENCE}/track/trackfilter.gpx -x track,move=+5h,name=LOG-20020527,start=20020528000242,stop=20020528000450,minimum_points=2 -o gpx -F ${TMPDIR}/trackfilter-move-h.gpx
+compare ${REFERENCE}/track/trackfilter-move-h.gpx ${TMPDIR}/trackfilter-move-h.gpx
+
+gpsbabel -t -i gpx -f ${REFERENCE}/track/trackfilter.gpx -x track,move=5s,name=LOG-20020527,start=20020527190247,stop=20020527190455,minimum_points=2 -o gpx -F ${TMPDIR}/trackfilter-move-s.gpx
+compare ${REFERENCE}/track/trackfilter-move-s.gpx ${TMPDIR}/trackfilter-move-s.gpx
+
+gpsbabel -t -i gpx -f ${REFERENCE}/track/trackfilter.gpx -x track,move=5d,name=LOG-20020527,start=20020601190242,stop=20020601190450,minimum_points=2 -o gpx -F ${TMPDIR}/trackfilter-move-d.gpx
+compare ${REFERENCE}/track/trackfilter-move-d.gpx ${TMPDIR}/trackfilter-move-d.gpx
+
+gpsbabel -t -i gpx -f ${REFERENCE}/track/trackfilter.gpx -x track,move=-5m,name=LOG-20020527,start=20020527185742,stop=20020527185950,minimum_points=2 -o gpx -F ${TMPDIR}/trackfilter-move-m.gpx
+compare ${REFERENCE}/track/trackfilter-move-m.gpx ${TMPDIR}/trackfilter-move-m.gpx
+
+gpsbabel -t -i gpx -f ${REFERENCE}/track/trackfilter.gpx -x track,move=5z,name=LOG-20020527,start=20020527190141.5,stop=20020527190449.5,minimum_points=2 -o gpx -F ${TMPDIR}/trackfilter-move-z.gpx
+compare ${REFERENCE}/track/trackfilter-move-z.gpx ${TMPDIR}/trackfilter-move-z.gpx
+
+# actually test a merge
+gpsbabel -t -i gpx -f ${REFERENCE}/track/trackfilter_merge.gpx -x track,merge -x track,speed -o gpx -F ${TMPDIR}/trackfilter_merge~gpx.gpx
+compare ${REFERENCE}/track/trackfilter_merge~gpx.gpx ${TMPDIR}/trackfilter_merge~gpx.gpx
+
+# test trk2seg
+gpsbabel -t -i gpx -f ${REFERENCE}/track/trackfilter_trk2seg.gpx -x track,speed,trk2seg -o gpx -F ${TMPDIR}/trackfilter_trk2seg~gpx.gpx
+compare ${REFERENCE}/track/trackfilter_trk2seg~gpx.gpx ${TMPDIR}/trackfilter_trk2seg~gpx.gpx
+
+# speed with msec
+gpsbabel -t -i unicsv -f ${REFERENCE}/track/utm_subsecond_track.csv -x track,speed -o unicsv,utc -F ${TMPDIR}/utm_subsecond_track~csv.csv
+compare ${REFERENCE}/track/utm_subsecond_track~csv.csv ${TMPDIR}/utm_subsecond_track~csv.csv
+
+# faketime, with and witout partial second steps
+gpsbabel -t -i unicsv -f ${REFERENCE}/track/simint.csv -x track,faketime=f2022+0.25 -o unicsv,utc -F ${TMPDIR}/simint250m.csv
+compare ${REFERENCE}/track/simint250m.csv ${TMPDIR}/simint250m.csv
+gpsbabel -t -i unicsv -f ${REFERENCE}/track/simint.csv -x track,faketime=f2022+.25 -o unicsv,utc -F ${TMPDIR}/simint250m_2.csv
+compare ${REFERENCE}/track/simint250m.csv ${TMPDIR}/simint250m_2.csv
+gpsbabel -t -i unicsv -f ${REFERENCE}/track/simint.csv -x track,faketime=f2022+1 -o unicsv,utc -F ${TMPDIR}/simint1000m.csv
+compare ${REFERENCE}/track/simint1000m.csv ${TMPDIR}/simint1000m.csv
+
+# segment
+gpsbabel -t -i unicsv,utc -f ${REFERENCE}/track/trackfilter_segment.csv -x track,segment -o gpx -F ${TMPDIR}/trackfilter_segment~csv.gpx
+compare ${REFERENCE}/track/trackfilter_segment~csv.gpx ${TMPDIR}/trackfilter_segment~csv.gpx
+

@@ -1,0 +1,35 @@
+<para>
+  While GPSBabel is capable of supporting all five USR formats for input processing
+  it is currently only able to generate USR format 2, 3, or 4 due to the lack of
+  detailed information on some of the data contained in the other formats.
+</para>
+
+<para>
+  By default, GPSBabel will generate USR version 2 data if the output format is
+  specified as <emphasis>lowranceusr</emphasis>.
+</para>
+
+<para>
+<userinput>
+ gpsbabel ... -o lowranceusr,wversion=2 -F blah.usr
+</userinput>
+is exactly the same as
+<userinput>
+ gpsbabel ... -o lowranceusr -F blah.usr
+</userinput>
+</para>
+
+<para>
+  Newer (post 2006 or so) Lowrance devices added a version three of their
+  USR file format that adds waypoint depth.  Lowrance recommends that this USR version
+  be used when transferring user data to systems such as
+  LMS, LCX, and so on.   Specify "3" to output USR version 3 data
+  on write.
+</para>
+
+<para>
+To create a USR version 3 file that contains waypoint depth information use these output options:
+<userinput>
+ gpsbabel ... -o lowranceusr,wversion=3 -F blah.usr
+</userinput>
+</para>

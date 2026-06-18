@@ -1,0 +1,56 @@
+#
+# Universal CSV - unicsv
+#
+
+#echo "lat,lon,descr,name,notes,unk,unk" > ${TMPDIR}/unicsv.txt
+#cat ${REFERENCE}/mxf.mxf >> ${TMPDIR}/unicsv.txt
+
+gpsbabel -i unicsv -f ${REFERENCE}/unicsv-test_input.txt -o gpx -F ${TMPDIR}/unicsv.gpx
+compare ${REFERENCE}/unicsv.gpx ${TMPDIR}/unicsv.gpx
+
+gpsbabel -i garmin_txt -f ${REFERENCE}/garmin_txt.txt -x nuketypes,routes,tracks -o unicsv -F ${TMPDIR}/garmin_txt-uni.csv
+compare ${REFERENCE}/garmin_txt-uni.csv ${TMPDIR}/garmin_txt-uni.csv
+
+gpsbabel -i gpx -f ${REFERENCE}/gc/GC7FA4.gpx -o unicsv,utc=0 -F ${TMPDIR}/gcunicsv-1.csv
+gpsbabel -i unicsv,utc=0 -f ${REFERENCE}/gc/GC7FA4~unicsv.csv -o unicsv,utc=0 -F  ${TMPDIR}/gcunicsv-2.csv
+compare ${TMPDIR}/gcunicsv-1.csv ${TMPDIR}/gcunicsv-2.csv
+
+gpsbabel -i unicsv -f ${REFERENCE}/gc/gcid-input.csv -o unicsv -F ${TMPDIR}/gcid-output.csv
+compare ${REFERENCE}/gc/gcid-output.csv ${TMPDIR}/gcid-output.csv
+
+# check header detection features
+gpsbabel -i unicsv,utc=0 -f ${REFERENCE}/headerdetection.unicsv -x transform,trk=wpt -o gpx,garminextensions -F ${TMPDIR}/headerdetection~unicsv.gpx
+compare ${REFERENCE}/extensiondata~unicsv.gpx ${TMPDIR}/headerdetection~unicsv.gpx
+
+# check default encoding, i.e. utf-8 in and out.
+gpsbabel -i gpx -f ${REFERENCE}/unicsv_encoding.gpx -o unicsv -F ${TMPDIR}/unicsv_encoding.csv
+compare ${TMPDIR}/unicsv_encoding.csv ${REFERENCE}/unicsv_encoding.csv
+
+# verify fractional second read and writes.
+gpsbabel -i unicsv -f ${REFERENCE}/unicsv_subsec.csv -o unicsv -F ${TMPDIR}/unicsv_subsec.csv
+compare ${REFERENCE}/unicsv_subsec.csv ${TMPDIR}/unicsv_subsec.csv
+
+# Verify 'fields' option
+gpsbabel -i unicsv,fields=lat+lon+description -f ${REFERENCE}/radius.csv -o csv -F ${TMPDIR}/unicsv_fields.out
+compare ${REFERENCE}/radius.csv ${TMPDIR}/unicsv_fields.out
+
+# stress quoting - internal separators and internal quotes
+gpsbabel -i unicsv -f ${REFERENCE}/libreoffice.csv -o text,degformat=ddd -F ${TMPDIR}/libreoffice.text
+compare ${REFERENCE}/libreoffice.text ${TMPDIR}/libreoffice.text
+
+gpsbabel -i unicsv -f ${REFERENCE}/libreoffice.csv -o unicsv -F ${TMPDIR}/libreoffice2.csv
+gpsbabel -i unicsv -f ${TMPDIR}/libreoffice2.csv -o text,degformat=ddd -F ${TMPDIR}/libreoffice2.text
+compare ${REFERENCE}/libreoffice.text ${TMPDIR}/libreoffice2.text
+
+gpsbabel -i unicsv -f ${REFERENCE}/humantodec1.csv -o gpx -F ${TMPDIR}/humantodec1.gpx
+compare ${REFERENCE}/humantodec.gpx ${TMPDIR}/humantodec1.gpx
+gpsbabel -i unicsv -f ${REFERENCE}/humantodec2.csv -o gpx -F ${TMPDIR}/humantodec2.gpx
+compare ${REFERENCE}/humantodec.gpx ${TMPDIR}/humantodec2.gpx
+
+# pretty degree format
+gpsbabel -i unicsv -f ${REFERENCE}/pretty_degree.csv -o unicsv,grid=0 -F ${TMPDIR}/pretty_degree0.csv
+compare ${REFERENCE}/pretty_degree0.csv ${TMPDIR}/pretty_degree0.csv
+gpsbabel -i unicsv -f ${REFERENCE}/pretty_degree.csv -o unicsv,grid=1 -F ${TMPDIR}/pretty_degree1.csv
+compare ${REFERENCE}/pretty_degree1.csv ${TMPDIR}/pretty_degree1.csv
+gpsbabel -i unicsv -f ${REFERENCE}/pretty_degree.csv -o unicsv,grid=2 -F ${TMPDIR}/pretty_degree2.csv
+compare ${REFERENCE}/pretty_degree2.csv ${TMPDIR}/pretty_degree2.csv

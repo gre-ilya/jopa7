@@ -1,0 +1,45 @@
+# GitHub version lets it render something prewtty close to HTML. (Still have to manually fix <, >, and other entities...)
+git log --date=short --pretty=format:"<tr>%n  <td class=\"date\">%cd</td>%n  <td>%s %b</td>%n</tr>"
+
+exit 0
+
+# Subversion version.
+git log | awk '
+skip = 0;
+/^r[0-9].*lines?$/ {
+  if (count > 0) printf "  </td>\n</tr>\n"
+  printf "<tr>\n  <td class=\"date\">%s</td>\n  <td>", $5
+  count++;
+  next
+}
+/^----.*----$/ {
+  if (skip == 1 ) printf "</td>\n</tr>\n"
+  next
+}
+/^$/ {
+  next
+}
+{
+  skip = 1;
+  print $0; 
+  next
+}
+' 
+
+exit 0
+
+# CVS version.
+cvsps $* |  awk '
+/^Date:/ { 
+	logt = "";
+	gsub("/", "-");
+	split($0, dte, " ");
+	
+	printf "\n<tr><td class=\"date\">%s</td>", dte[2];
+	}
+/^Log:/ { gsub("^Log:", ""); inlog = 1 }
+/^Members:/ {printf "<td>%s</td></tr>", logt ; inlog = 0; }
+{ if (inlog > 0) { logt = logt $0 ;}  }
+' | sort -rn | sed "s#<td#\\
+  <td#g" | sed "s#<\/tr>#\\
+<\/tr>#g"

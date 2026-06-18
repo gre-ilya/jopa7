@@ -1,0 +1,12 @@
+exclude_paths:
+  - 'deprecated/**'
+  - 'mac/libusb/**'
+  - 'reference/**'
+  - 'shapelib/**'
+  - 'strptime/**'
+  - 'zlib/**'
+  - coverity_model.cc
+  - jeeps/gpsproj.cc
+  - jeeps/gpsproj.h
+  - tools/qtci/README.md
+  - tools/uploadtool/README.md
