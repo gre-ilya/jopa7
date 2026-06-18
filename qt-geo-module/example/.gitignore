@@ -1,0 +1,8 @@
+# qmake / make build artifacts
+build/
+Makefile
+*.o
+moc_*.cpp
+moc_predefs.h
+.qmake.stash
+geofileviewer
