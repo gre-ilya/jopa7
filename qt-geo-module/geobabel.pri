@@ -78,8 +78,11 @@ SOURCES += \
 # Platform defines.
 #   defs.h already defines M_PI itself, so _USE_MATH_DEFINES is not needed.
 # ---------------------------------------------------------------------------
-win32:        DEFINES *= __WIN32__
-win32-msvc*:  DEFINES *= _CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_WARNINGS
+win32: DEFINES *= __WIN32__
+# Silence MSVC-CRT deprecation noise.  Applied to every Windows toolchain
+# (MSVC, clang-cl / win32-clang-msvc, and MinGW / clang-MinGW); harmless where
+# the MS CRT headers are not used.
+win32: DEFINES *= _CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_WARNINGS
 
 # ---------------------------------------------------------------------------
 # zlib.  gbfile.cc uses zlib to read gzip-compressed inputs.  By default we
@@ -97,8 +100,10 @@ isEmpty(GEOBABEL_ZLIB): GEOBABEL_ZLIB = bundled
 
 equals(GEOBABEL_ZLIB, system) {
     DEFINES *= HAVE_LIBZ
-    win32-msvc*: LIBS += zlib.lib
-    else:        LIBS += -lz
+    # MSVC-style drivers (MSVC and clang-cl) link the import library by name;
+    # everything else (gcc, MinGW, clang-MinGW, Unix) uses -lz.
+    win32-msvc*|win32-clang-msvc: LIBS += zlib.lib
+    else:                         LIBS += -lz
 } else:equals(GEOBABEL_ZLIB, none) {
     DEFINES *= ZLIB_INHIBITED
 } else {
