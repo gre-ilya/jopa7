@@ -74,6 +74,13 @@ CONFIG += c++17
 include(/path/to/qt-geo-module/geobabel.pri)
 ```
 
+> **Важно.** `geobabel.pri` сам добавляет в сборку *полный* набор нужных
+> исходников GPSBabel (`gdb.cc`, `route.cc`, `waypt.cc`, …). **Не добавляйте их
+> в свой `SOURCES` вручную** — подключения `.pri` достаточно. Путь
+> `GPSBABEL_SRC` должен указывать на корень дерева исходников GPSBabel (где
+> лежат `gdb.cc`, `defs.h`, `jeeps/`, `src/core/`). Если он не задан, берётся
+> родительский каталог модуля.
+
 И в коде:
 
 ```cpp
@@ -166,6 +173,40 @@ GDB — основной поддерживаемый формат. Чтобы �
 Архитектура для этого уже готова: ридер — это полиморфный `Format*`, а вся
 остальная логика (инициализация, обход глобальных списков, сборка `GeoData`)
 от формата не зависит.
+
+## Решение проблем
+
+### `undefined reference to route_add_wpt(...)` (и другие символы GPSBabel) при линковке
+
+Симптом: `gdb.cc` компилируется, но на этапе линковки куча `undefined
+reference` на функции ядра GPSBabel (`route_add_wpt`, `waypt_add`,
+`route_add_head`, …). Это значит, что в линковку попал только `gdb.cc`, а
+остальные `.cc`-файлы ядра — нет. Две причины:
+
+1. **`include(...geobabel.pri)` не сработал из-за неверного пути.** В qmake
+   неудачный `include()` **не фатален** — он печатает
+   `Cannot read .../geobabel.pri: No such file or directory` и продолжает, после
+   чего `.pri` не добавляет ничего. Проверьте вывод `qmake` на эту строку и
+   укажите корректный путь к `geobabel.pri`.
+2. **`GPSBABEL_SRC` указывает не туда** (или вы скопировали только часть
+   исходников / добавили `gdb.cc` в свой `SOURCES` руками). Начиная с этой
+   версии `geobabel.pri` ловит это сам и падает на этапе `qmake` с понятным
+   сообщением:
+   ```
+   Project ERROR: geobabel.pri: GPSBabel sources not found under GPSBABEL_SRC='...'.
+   ```
+   Задайте `GPSBABEL_SRC` на корень дерева GPSBabel **до** `include(...)` и
+   **не** добавляйте `.cc`-файлы GPSBabel в свой `SOURCES` вручную — `.pri`
+   подключает полный набор сам.
+
+Минимальный рабочий `.pro`:
+```pro
+QT += core
+CONFIG += c++17 console
+GPSBABEL_SRC = /абсолютный/путь/к/gpsbabel      # каталог с gdb.cc, defs.h, jeeps/, src/core/
+include(/абсолютный/путь/к/qt-geo-module/geobabel.pri)
+SOURCES += main.cpp
+```
 
 ## Лицензия
 

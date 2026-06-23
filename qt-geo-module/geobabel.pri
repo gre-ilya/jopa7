@@ -34,6 +34,18 @@ isEmpty(GPSBABEL_SRC) {
     GPSBABEL_SRC = $$clean_path($$PWD/..)
 }
 
+# Fail fast with an actionable message instead of a wall of "undefined
+# reference" linker errors later: verify the GPSBabel sources really are where
+# we are about to look for them.
+!exists($$GPSBABEL_SRC/gdb.cc)|!exists($$GPSBABEL_SRC/route.cc)|!exists($$GPSBABEL_SRC/defs.h) {
+    error("geobabel.pri: GPSBabel sources not found under GPSBABEL_SRC='$$GPSBABEL_SRC'. \
+Set GPSBABEL_SRC to the root of the GPSBabel source tree BEFORE include(.../geobabel.pri), e.g.:$$escape_expand(\\n)\
+    GPSBABEL_SRC = /path/to/gpsbabel$$escape_expand(\\n)\
+    include(/path/to/qt-geo-module/geobabel.pri)$$escape_expand(\\n)\
+The directory must contain gdb.cc, route.cc, waypt.cc, defs.h, jeeps/ and src/core/. \
+Do NOT add the GPSBabel .cc files to your own SOURCES by hand -- this .pri adds the complete set.")
+}
+
 MODULE_SRC = $$PWD/src
 
 INCLUDEPATH *= $$MODULE_SRC      # geofile.h
