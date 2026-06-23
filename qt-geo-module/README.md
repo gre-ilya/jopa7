@@ -176,6 +176,41 @@ GDB — основной поддерживаемый формат. Чтобы �
 
 ## Решение проблем
 
+### Конфликт имён объектных файлов (`route.cpp` ↔ `route.cc`) — частая причина `undefined reference`
+
+Если в линковке падают символы из конкретного файла ядра (например,
+`global_route_list` / `route_add_wpt` из `route.cc`, видно как ошибка в
+`geofile.cpp` на строке с `*global_route_list`), а другие файлы при этом
+собрались — почти наверняка **конфликт имён `.o`**.
+
+qmake именует объектные файлы по *базовому* имени исходника без учёта
+расширения и каталога. Если в вашем проекте есть `route.cpp`, а у GPSBabel —
+`route.cc`, оба компилируются в **`route.o`** в одном build-каталоге, и один
+молча перезатирает другой → символы из `route.cc` пропадают. То же случится с
+`util.cpp`/`util.cc`, `session.*` и любыми другими совпадениями.
+
+**Решение (рекомендуется): собрать модуль отдельной статической библиотекой**
+`qt-geo-module/lib/geobabel_lib.pro`. Тогда объекты GPSBabel живут в своём
+build-каталоге и ни с чем не сталкиваются:
+```sh
+mkdir build-geobabel && cd build-geobabel
+qmake /path/to/qt-geo-module/lib/geobabel_lib.pro
+make            # -> libgeobabel.a   (geobabel.lib на MSVC)
+```
+В вашем `.pro` — линкуем готовую библиотеку (а НЕ include основного `.pri`):
+```pro
+QT += core
+CONFIG += c++17
+GEOBABEL_BUILD_DIR = /path/to/build-geobabel
+include(/path/to/qt-geo-module/lib/link_geobabel.pri)
+# теперь ваши route.cpp / util.cpp не конфликтуют с ядром GPSBabel
+```
+
+**Быстрая альтернатива (одной строкой):** добавьте в свой `.pro`
+`CONFIG += object_parallel_to_source` — `.o` будут класться рядом с исходниками,
+и базовые имена перестанут сталкиваться. Минус: `.o` пишутся прямо в дерево
+исходников (в т.ч. в `GPSBABEL_SRC`).
+
 ### `undefined reference to route_add_wpt(...)` (и другие символы GPSBabel) при линковке
 
 Симптом: `gdb.cc` компилируется, но на этапе линковки куча `undefined
