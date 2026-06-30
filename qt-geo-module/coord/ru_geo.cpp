@@ -161,35 +161,59 @@ ECEF geodeticToEcef(const Geodetic& g, Datum d) {
   return e;
 }
 
+// Reverse conversion X,Y,Z -> B,L,H by the ITERATIVE algorithm of the standard
+// (ГОСТ Р 51794-2008 / ГОСТ 32453-2017), not Bowring's closed form. Auxiliary
+// quantities follow the standard:
+//   D = sqrt(X^2 + Y^2)            distance from the rotation axis
+//   r = sqrt(X^2 + Y^2 + Z^2)      geocentric radius
+//   c = arcsin(Z / r)             auxiliary angle
+//   p = e^2 * a / (2 r)
+//   s_{k+1} = arcsin( p * sin(2(c + s_k)) / sqrt(1 - e^2 sin^2(c + s_k)) ), s_0 = 0
+//   B = c + s   (on convergence)
+//   H = D cos B + Z sin B - a sqrt(1 - e^2 sin^2 B)
+// Longitude is taken by quadrant from the signs of X and Y (here via atan2).
 Geodetic ecefToGeodetic(const ECEF& e, Datum d) {
   const Ellipsoid el = ellipsoidOf(d);
   const double f  = 1.0 / el.invf;
   const double a  = el.a;
-  const double b  = a * (1.0 - f);
-  const double e2 = f * (2.0 - f);         // first eccentricity^2
-  const double ep2 = (a * a - b * b) / (b * b);  // second eccentricity^2
+  const double e2 = f * (2.0 - f);  // first eccentricity squared
 
-  const double p = std::sqrt(e.x * e.x + e.y * e.y);
+  const double D = std::sqrt(e.x * e.x + e.y * e.y);
+  const double r = std::sqrt(e.x * e.x + e.y * e.y + e.z * e.z);
 
   Geodetic g;
-  g.lon = std::atan2(e.y, e.x) / kDeg;
 
-  if (p < 1e-9) {  // on the rotation axis (pole)
-    g.lat = (e.z >= 0.0 ? 90.0 : -90.0);
-    g.h   = std::fabs(e.z) - b;
+  // Longitude (undefined on the polar axis -> 0 by convention).
+  g.lon = (D < 1e-9) ? 0.0 : std::atan2(e.y, e.x) / kDeg;
+
+  // Degenerate case: point at the geocentre.
+  if (r < 1e-9) {
+    g.lat = 0.0;
+    g.h   = -a;
     return g;
   }
 
-  // Bowring's closed-form solution.
-  const double theta = std::atan2(e.z * a, p * b);
-  const double sT = std::sin(theta), cT = std::cos(theta);
-  const double B  = std::atan2(e.z + ep2 * b * sT * sT * sT,
-                               p   - e2  * a * cT * cT * cT);
-  const double sB = std::sin(B), cB = std::cos(B);
-  const double N  = a / std::sqrt(1.0 - e2 * sB * sB);
+  // Iterative latitude (ГОСТ). Converges in a few steps for near-Earth points.
+  const double c = std::asin(e.z / r);
+  const double p = e2 * a / (2.0 * r);
+  double s = 0.0;
+  double B = c;
+  for (int i = 0; i < 12; ++i) {
+    B = c + s;
+    const double sB = std::sin(B);
+    const double sNext =
+        std::asin(p * std::sin(2.0 * B) / std::sqrt(1.0 - e2 * sB * sB));
+    if (std::fabs(sNext - s) < 1e-15) {
+      s = sNext;
+      break;
+    }
+    s = sNext;
+  }
+  B = c + s;
 
+  const double sB = std::sin(B);
   g.lat = B / kDeg;
-  g.h   = p / cB - N;
+  g.h   = D * std::cos(B) + e.z * sB - a * std::sqrt(1.0 - e2 * sB * sB);
   return g;
 }
 
