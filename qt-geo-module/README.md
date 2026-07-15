@@ -97,8 +97,9 @@ if (parser.parse("/path/to/track.gdb", data, &error)) {
 ```
 
 `geobabel.pri` добавляет в сборку обёртку и **минимально необходимый набор**
-исходников GPSBabel для чтения GDB (17 файлов: `gdb.cc`, `waypt.cc`, `route.cc`,
-`gbfile.cc`, `garmin_*`, `jeeps/gpsmath.cc`, `src/core/*` и т.д.) плюс `-lz`.
+исходников GPSBabel для чтения GDB и GPX (20 файлов: `gdb.cc`, `gpx.cc`,
+`waypt.cc`, `route.cc`, `gbfile.cc`, `garmin_*`, `jeeps/gpsmath.cc`,
+`src/core/*` и т.д.) плюс `-lz`.
 
 ## GUI-пример (drag-and-drop)
 
@@ -163,8 +164,8 @@ qmake && make
 
 ## Как добавить другие форматы
 
-GDB — основной поддерживаемый формат. Чтобы добавить ещё один формат GPSBabel
-(например GPX):
+Поддерживаются GDB и GPX. Чтобы добавить ещё один формат GPSBabel
+(например KML):
 
 1. добавьте его `.cc`-файлы (и новые зависимости) в `geobabel.pri`;
 2. добавьте ветку в `makeReader()` в `geofile.cpp`;
