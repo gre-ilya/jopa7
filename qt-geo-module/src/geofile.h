@@ -52,7 +52,7 @@ struct GeoData {
 };
 
 /*
- * GeoFileParser converts a geo file (primarily Garmin .gdb) into the plain
+ * GeoFileParser converts a geo file (Garmin .gdb, GPX) into the plain
  * GeoData model above.
  *
  * Threading: GPSBabel relies on process-global state, so parsing is not

@@ -63,7 +63,7 @@ SOURCES += $$MODULE_SRC/geofile.cpp
 SOURCES += $$MODULE_SRC/gb_fatal.cpp
 
 # ---------------------------------------------------------------------------
-# GPSBabel core needed to read Garmin .gdb files.
+# GPSBabel core needed to read Garmin .gdb and GPX files.
 # (Determined as the minimal closure for the GDB reader; note fatal.cc is
 #  deliberately NOT listed -- see gb_fatal.cpp above.)
 # ---------------------------------------------------------------------------
@@ -82,6 +82,9 @@ SOURCES += \
     $$GPSBABEL_SRC/grtcirc.cc \
     $$GPSBABEL_SRC/inifile.cc \
     $$GPSBABEL_SRC/gdb.cc \
+    $$GPSBABEL_SRC/gpx.cc \
+    $$GPSBABEL_SRC/src/core/xmlstreamwriter.cc \
+    $$GPSBABEL_SRC/src/core/xmltag.cc \
     $$GPSBABEL_SRC/src/core/usasciicodec.cc \
     $$GPSBABEL_SRC/src/core/logging.cc \
     $$GPSBABEL_SRC/jeeps/gpsmath.cc

@@ -28,6 +28,7 @@
 #include "defs.h"                     // global_opts, Waypoint, route_head, list helpers
 #include "format.h"                   // Format base class
 #include "gdb.h"                      // GdbFormat
+#include "gpx.h"                      // GpxFormat
 #include "session.h"                  // session_init, start_session
 #include "src/core/datetime.h"        // gpsbabel::DateTime
 #include "src/core/usasciicodec.h"    // gpsbabel::UsAsciiCodec
@@ -194,6 +195,9 @@ std::unique_ptr<Format> makeReader(const QString& ext)
   if (ext == QLatin1String("gdb")) {
     return std::make_unique<GdbFormat>();
   }
+  if (ext == QLatin1String("gpx")) {
+    return std::make_unique<GpxFormat>();
+  }
   return nullptr;
 }
 
@@ -202,7 +206,7 @@ std::unique_ptr<Format> makeReader(const QString& ext)
 QStringList GeoFileParser::supportedExtensions()
 {
   // Keep in sync with makeReader().
-  return {QStringLiteral("gdb")};
+  return {QStringLiteral("gdb"), QStringLiteral("gpx")};
 }
 
 bool GeoFileParser::isSupported(const QString& filePath)
