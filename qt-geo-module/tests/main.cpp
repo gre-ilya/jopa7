@@ -15,6 +15,7 @@
 #include <QTemporaryDir>
 
 #include "geofile.h"
+#include "geodocument.h"
 
 static int failures = 0;
 
@@ -130,6 +131,67 @@ int main(int argc, char** argv)
       check(!back.routes.isEmpty() && back.routes[0].points.size() == 3,
             QStringLiteral(".%1: route with 3 points survives").arg(ext));
     }
+  }
+
+  // ---- GeoDocument: open-with-lock / edit / save / close.
+  {
+    QTemporaryDir tmp;
+    check(tmp.isValid(), QStringLiteral("temporary dir for GeoDocument tests"));
+    const QString docPath = tmp.filePath(QStringLiteral("doc.gpx"));
+
+    // Prepare a document on disk.
+    {
+      geo::GeoData src;
+      geo::GeoPoint p;
+      p.name = QString::fromUtf8("База");
+      p.latitude = 55.0;
+      p.longitude = 37.0;
+      src.points = {p};
+      QString serr;
+      check(parser.save(docPath, src, &serr),
+            QStringLiteral("GeoDocument: prepare file (%1)").arg(serr));
+    }
+
+    geo::GeoDocument doc1;
+    QString derr;
+    check(doc1.open(docPath, &derr),
+          QStringLiteral("GeoDocument: first open succeeds (%1)").arg(derr));
+    check(doc1.isOpen() && doc1.filePath() == docPath,
+          QStringLiteral("GeoDocument: isOpen/filePath"));
+
+    // A second document (second app copy) must be refused while locked.
+    geo::GeoDocument doc2;
+    QString berr;
+    check(!doc2.open(docPath, &berr),
+          QStringLiteral("GeoDocument: second open refused (%1)").arg(berr));
+
+    // Edit in memory, save, close.
+    doc1.data().points[0].name = QString::fromUtf8("База-2");
+    check(doc1.save(&derr),
+          QStringLiteral("GeoDocument: save (%1)").arg(derr));
+    doc1.close();
+    check(!doc1.isOpen(), QStringLiteral("GeoDocument: closed"));
+
+    // After close the file is free again and carries the edit.
+    check(doc2.open(docPath, &berr),
+          QStringLiteral("GeoDocument: open after close (%1)").arg(berr));
+    check(!doc2.data().points.isEmpty() &&
+              doc2.data().points[0].name == QString::fromUtf8("База-2"),
+          QStringLiteral("GeoDocument: edit persisted"));
+
+    // saveAs moves the document (and the lock) to a new path.
+    const QString docPath2 = tmp.filePath(QStringLiteral("doc2.gpx"));
+    check(doc2.saveAs(docPath2, &berr),
+          QStringLiteral("GeoDocument: saveAs (%1)").arg(berr));
+    check(doc2.filePath() == docPath2,
+          QStringLiteral("GeoDocument: filePath follows saveAs"));
+    geo::GeoDocument doc3;
+    check(doc3.open(docPath, &berr),
+          QStringLiteral("GeoDocument: old path unlocked after saveAs"));
+    geo::GeoDocument doc4;
+    check(!doc4.open(docPath2, &berr),
+          QStringLiteral("GeoDocument: new path locked by saveAs owner (%1)")
+              .arg(berr));
   }
 
   printf(failures == 0 ? "\nALL TESTS PASSED\n" : "\n%d TEST(S) FAILED\n",
