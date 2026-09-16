@@ -97,9 +97,32 @@ if (parser.parse("/path/to/track.gdb", data, &error)) {
 ```
 
 `geobabel.pri` добавляет в сборку обёртку и **минимально необходимый набор**
-исходников GPSBabel для чтения GDB и GPX (20 файлов: `gdb.cc`, `gpx.cc`,
+исходников GPSBabel для чтения и записи GDB, GPX и GeoJSON (21 файл: `gdb.cc`, `gpx.cc`, `geojson.cc`,
 `waypt.cc`, `route.cc`, `gbfile.cc`, `garmin_*`, `jeeps/gpsmath.cc`,
 `src/core/*` и т.д.) плюс `-lz`.
+
+## Сохранение в файл
+
+`save()` пишет `GeoData` в файл; формат выбирается по расширению:
+
+```cpp
+geo::GeoFileParser io;
+QString err;
+io.save("/path/out.gpx", data, &err);      // GPX 1.0
+io.save("/path/out.gdb", data, &err);      // Garmin GDB (версия 3 = UTF-8)
+io.save("/path/out.geojson", data, &err);  // GeoJSON FeatureCollection (.json — синоним)
+```
+
+Пишутся точки и маршруты; существующий файл перезаписывается. Особенности:
+
+- **GDB** всегда пишется **версией 3** (строки UTF-8), поэтому кириллица
+  сохраняется без плясок с кодировками. Координаты в GDB хранятся как 32-битные
+  semicircles — квантование ~3 мм.
+- **GeoJSON** не имеет понятия «маршрут», поэтому маршруты записываются как
+  `LineString` (в терминах GPSBabel — треки). Вершины `LineString` безымянные,
+  так что при обратном чтении они не склеиваются с одноимёнными точками.
+- При чтении (`parse`) **треки** из любых форматов теперь тоже возвращаются в
+  `GeoData::routes`, наравне с маршрутами.
 
 ## GUI-пример (drag-and-drop)
 
@@ -132,7 +155,7 @@ qmake && make
 - **Платформенные дефайны** выставляются автоматически: `__WIN32__` на Windows,
   `_CRT_SECURE_NO_WARNINGS` / `_CRT_NONSTDC_NO_WARNINGS` на MSVC. `M_PI` GPSBabel
   определяет сам в `defs.h`, поэтому `_USE_MATH_DEFINES` не требуется.
-- Все 17 подключаемых файлов GPSBabel — это переносимый C++/Qt без прямых
+- Все подключаемые файлы GPSBabel — это переносимый C++/Qt без прямых
   POSIX/WinAPI-заголовков; серийные порты (`gbser`) для чтения GDB не нужны и не
   подключаются.
 

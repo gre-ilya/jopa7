@@ -12,6 +12,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QString>
+#include <QTemporaryDir>
 
 #include "geofile.h"
 
@@ -75,6 +76,61 @@ int main(int argc, char** argv)
   QString err2;
   check(!parser.parse(QStringLiteral("/no/such/file.gdb"), dummy, &err2),
         QStringLiteral("missing file fails gracefully"));
+
+  // ---- save(): build a GeoData in memory, write it to every supported
+  // format, read it back and verify the round trip (incl. Cyrillic text).
+  {
+    geo::GeoData src;
+    geo::GeoPoint a;
+    a.name = QString::fromUtf8("Точка Москва");
+    a.description = QString::fromUtf8("Красная площадь");
+    a.latitude = 55.7558;
+    a.longitude = 37.6173;
+    a.altitude = 150.0;
+    a.hasAltitude = true;
+    geo::GeoPoint b;
+    b.name = QString::fromUtf8("Питер");
+    b.latitude = 59.9391;
+    b.longitude = 30.3159;
+    src.points = {a, b};
+    geo::GeoRoute r;
+    r.name = QString::fromUtf8("Маршрут №1");
+    r.points = {0, 1, 0};
+    src.routes = {r};
+
+    QTemporaryDir tmp;
+    check(tmp.isValid(), QStringLiteral("temporary dir for save() tests"));
+    for (const QString& ext : geo::GeoFileParser::supportedSaveExtensions()) {
+      const QString out = tmp.filePath(QStringLiteral("out.") + ext);
+      QString serr;
+      const bool saved = parser.save(out, src, &serr);
+      check(saved, QStringLiteral("save %1 (%2)").arg(out, serr));
+      if (!saved) {
+        continue;
+      }
+      geo::GeoData back;
+      const bool reread = parser.parse(out, back, &serr);
+      check(reread, QStringLiteral("re-parse %1 (%2)").arg(out, serr));
+      if (!reread) {
+        continue;
+      }
+      check(back.points.size() >= 2,
+            QStringLiteral(".%1: at least the 2 waypoints survive").arg(ext));
+      bool cyr = false;
+      double dlat = 1.0;
+      for (const geo::GeoPoint& p : back.points) {
+        if (p.name == a.name) {
+          cyr = true;
+          dlat = qAbs(p.latitude - a.latitude);
+        }
+      }
+      check(cyr, QStringLiteral(".%1: Cyrillic point name survives").arg(ext));
+      // GDB stores coordinates as 32-bit semicircles (~3 mm quantization).
+      check(dlat < 1e-6, QStringLiteral(".%1: latitude round-trips").arg(ext));
+      check(!back.routes.isEmpty() && back.routes[0].points.size() == 3,
+            QStringLiteral(".%1: route with 3 points survives").arg(ext));
+    }
+  }
 
   printf(failures == 0 ? "\nALL TESTS PASSED\n" : "\n%d TEST(S) FAILED\n",
          failures);

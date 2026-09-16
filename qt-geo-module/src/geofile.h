@@ -52,12 +52,12 @@ struct GeoData {
 };
 
 /*
- * GeoFileParser converts a geo file (Garmin .gdb, GPX) into the plain
- * GeoData model above.
+ * GeoFileParser converts a geo file (Garmin .gdb, GPX, GeoJSON) into the
+ * plain GeoData model above, and can save a GeoData back to a file.
  *
  * Threading: GPSBabel relies on process-global state, so parsing is not
  * re-entrant.  This class serializes calls internally with a mutex, so it is
- * safe to call parse() from several threads, but calls will not run in
+ * safe to call parse()/save() from several threads, but calls will not run in
  * parallel.
  */
 class GeoFileParser {
@@ -72,8 +72,21 @@ public:
    */
   bool parse(const QString& filePath, GeoData& out, QString* errorMessage = nullptr);
 
+  /*
+   * Save data to the file at filePath.  The format is chosen from the file
+   * extension: .gdb (Garmin MapSource, written as version 3 = UTF-8),
+   * .gpx (GPX 1.0), .geojson / .json (GeoJSON FeatureCollection).
+   * Waypoints and routes are written; an existing file is overwritten.
+   * On failure returns false and, if errorMessage is non-null, stores a
+   * human readable reason.
+   */
+  bool save(const QString& filePath, const GeoData& data, QString* errorMessage = nullptr);
+
   /* File extensions (without the dot, lower case) this parser understands. */
   static QStringList supportedExtensions();
+
+  /* File extensions save() can write (without the dot, lower case). */
+  static QStringList supportedSaveExtensions();
 
   /* Convenience: true if filePath has a supported extension. */
   static bool isSupported(const QString& filePath);

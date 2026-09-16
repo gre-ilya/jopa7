@@ -29,6 +29,7 @@
 #include "format.h"                   // Format base class
 #include "gdb.h"                      // GdbFormat
 #include "gpx.h"                      // GpxFormat
+#include "geojson.h"                  // GeoJsonFormat
 #include "session.h"                  // session_init, start_session
 #include "src/core/datetime.h"        // gpsbabel::DateTime
 #include "src/core/usasciicodec.h"    // gpsbabel::UsAsciiCodec
@@ -37,6 +38,7 @@
 // so we (re)declare them here at global scope to iterate over the parse result.
 extern WaypointList* global_waypoint_list;
 extern RouteList* global_route_list;
+extern RouteList* global_track_list;
 
 namespace geo {
 
@@ -198,7 +200,54 @@ std::unique_ptr<Format> makeReader(const QString& ext)
   if (ext == QLatin1String("gpx")) {
     return std::make_unique<GpxFormat>();
   }
+  if (ext == QLatin1String("geojson") || ext == QLatin1String("json")) {
+    return std::make_unique<GeoJsonFormat>();
+  }
   return nullptr;
+}
+
+// Create the right writer for a given extension.  Same Format subclasses:
+// every format included in this module implements both reading and writing.
+std::unique_ptr<Format> makeWriter(const QString& ext)
+{
+  return makeReader(ext);
+}
+
+// Set a format option (the equivalent of gpsbabel's -o fmt,opt=value).  The
+// option table maps option names onto char* members of the Format subclass.
+// The value must outlive the format object; pass a string literal.
+void setFormatOption(Format* fmt, const QString& name, const char* value)
+{
+  QVector<arglist_t>* args = fmt->get_args();
+  if (!args) {
+    return;
+  }
+  for (arglist_t& a : *args) {
+    if (a.argval && a.argstring.compare(name, Qt::CaseInsensitive) == 0) {
+      *a.argval = const_cast<char*>(value);
+      return;
+    }
+  }
+}
+
+// gpsbabel's vecs machinery normally seeds every format option with its
+// declared default before the format runs; formats rely on that (e.g. the GPX
+// writer does xstrtoi(snlen) without a null check).  This wrapper bypasses
+// vecs, so apply the defaults ourselves.  Returns the strings we allocated;
+// free them with xfree() once the format is done.
+QVector<char*> applyOptionDefaults(Format* fmt)
+{
+  QVector<char*> owned;
+  if (QVector<arglist_t>* args = fmt->get_args()) {
+    for (arglist_t& a : *args) {
+      if (a.argval && *a.argval == nullptr && !a.defaultvalue.isEmpty()) {
+        char* v = xstrdup(a.defaultvalue);
+        *a.argval = v;
+        owned.append(v);
+      }
+    }
+  }
+  return owned;
 }
 
 } // namespace
@@ -206,7 +255,14 @@ std::unique_ptr<Format> makeReader(const QString& ext)
 QStringList GeoFileParser::supportedExtensions()
 {
   // Keep in sync with makeReader().
-  return {QStringLiteral("gdb"), QStringLiteral("gpx")};
+  return {QStringLiteral("gdb"), QStringLiteral("gpx"),
+          QStringLiteral("geojson"), QStringLiteral("json")};
+}
+
+QStringList GeoFileParser::supportedSaveExtensions()
+{
+  // Keep in sync with makeWriter().
+  return supportedExtensions();
 }
 
 bool GeoFileParser::isSupported(const QString& filePath)
@@ -248,6 +304,12 @@ bool GeoFileParser::parse(const QString& filePath, GeoData& out, QString* errorM
 
   // GPSBabel reports unrecoverable problems with fatal(), which throws a
   // gpsbabel::Fatal (a QString-derived exception).
+  const QVector<char*> ownedOpts = applyOptionDefaults(reader.get());
+  auto freeOwnedOpts = [&ownedOpts]() {
+    for (char* v : ownedOpts) {
+      xfree(v);
+    }
+  };
   try {
     start_session(ext, filePath);
     reader->rd_init(filePath);
@@ -255,11 +317,14 @@ bool GeoFileParser::parse(const QString& filePath, GeoData& out, QString* errorM
     reader->rd_deinit();
   } catch (const QString& e) {
     clearGlobalLists();
+    freeOwnedOpts();
     return fail(e);
   } catch (const std::exception& e) {
     clearGlobalLists();
+    freeOwnedOpts();
     return fail(QString::fromUtf8(e.what()));
   }
+  freeOwnedOpts();
 
   // Index of points already added, so route points can reference the same
   // shared point and so a point used several times collapses to one entry.
@@ -293,9 +358,132 @@ bool GeoFileParser::parse(const QString& filePath, GeoData& out, QString* errorM
     out.routes.append(route);
   }
 
+  // 3. Tracks, exposed the same way as routes.  Some formats only have this
+  // notion for an ordered line: e.g. the GeoJSON reader turns every
+  // LineString into a track.
+  for (const route_head* trk : *global_track_list) {
+    GeoRoute route;
+    route.name = fixEncoding(trk->rte_name);
+    route.description = fixEncoding(trk->rte_desc);
+    for (const Waypoint* wpt : trk->waypoint_list) {
+      route.points.append(addPoint(wpt));
+    }
+    out.routes.append(route);
+  }
+
   // Leave the global lists empty for the next caller.
   clearGlobalLists();
 
+  return true;
+}
+
+bool GeoFileParser::save(const QString& filePath, const GeoData& data,
+                         QString* errorMessage)
+{
+  auto fail = [&](const QString& msg) {
+    if (errorMessage) {
+      *errorMessage = msg;
+    }
+    return false;
+  };
+
+  const QString ext = QFileInfo(filePath).suffix().toLower();
+  std::unique_ptr<Format> writer = makeWriter(ext);
+  if (!writer) {
+    return fail(QStringLiteral("Unsupported output format: .%1").arg(ext));
+  }
+  const QVector<char*> ownedOpts = applyOptionDefaults(writer.get());
+  auto freeOwnedOpts = [&ownedOpts]() {
+    for (char* v : ownedOpts) {
+      xfree(v);
+    }
+  };
+
+  // Sanity-check route indices up front, before touching global state.
+  for (const GeoRoute& r : data.routes) {
+    for (const int idx : r.points) {
+      if (idx < 0 || idx >= data.points.size()) {
+        return fail(QStringLiteral("Route \"%1\" references point index %2, "
+                                   "but there are only %3 points")
+                        .arg(r.name).arg(idx).arg(data.points.size()));
+      }
+    }
+  }
+
+  if (ext == QLatin1String("gdb")) {
+    // Write GDB version 3: strings are UTF-8, so Cyrillic (and any other
+    // non-Latin1 text) survives.  Without an explicit "ver" the writer would
+    // emit an invalid version 0 header, because this wrapper bypasses the
+    // vecs option machinery that normally applies the default.
+    setFormatOption(writer.get(), QStringLiteral("ver"), "3");
+  }
+
+  QMutexLocker locker(&g_parseMutex);
+
+  ensureGlobalInit();
+  clearGlobalLists();
+  // waypt_add() records the current session on every waypoint, so a session
+  // must be started before populating the lists (same as on the parse path).
+  start_session(ext, filePath);
+  QVector<const Waypoint*> created;
+  created.reserve(data.points.size());
+  for (const GeoPoint& p : data.points) {
+    auto* w = new Waypoint;
+    w->shortname = p.name;
+    w->description = p.description;
+    w->latitude = p.latitude;
+    w->longitude = p.longitude;
+    if (p.hasAltitude) {
+      w->altitude = p.altitude;
+    }
+    waypt_add(w);
+    created.append(w);
+  }
+  for (const GeoRoute& r : data.routes) {
+    auto* rte = new route_head;
+    rte->rte_name = r.name;
+    rte->rte_desc = r.description;
+    // The GeoJSON writer only serializes tracks as LineStrings (it has no
+    // route notion), so feed routes to the track list for that format.
+    const bool asTrack =
+        (ext == QLatin1String("geojson") || ext == QLatin1String("json"));
+    if (asTrack) {
+      track_add_head(rte);
+    } else {
+      route_add_head(rte);
+    }
+    for (const int idx : r.points) {
+      auto* w = new Waypoint(*created[idx]);
+      if (asTrack) {
+        track_add_wpt(rte, w);
+      } else {
+        route_add_wpt(rte, w);
+      }
+    }
+  }
+
+  bool ok = true;
+  QString error;
+  try {
+    writer->wr_init(filePath);
+    writer->write();
+    writer->wr_deinit();
+  } catch (const QString& e) {
+    ok = false;
+    error = e;
+  } catch (const std::exception& e) {
+    // gb_fatal.cpp turns GPSBabel's fatal() into an exception, so a write
+    // error cannot kill the host application.
+    ok = false;
+    error = QString::fromUtf8(e.what());
+  }
+
+  clearGlobalLists();
+  freeOwnedOpts();
+
+  if (!ok) {
+    return fail(QStringLiteral("Failed to write %1: %2").arg(filePath, error));
+  }
   return true;
 }
 
