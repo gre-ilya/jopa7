@@ -1,8 +1,8 @@
 # qt-geo-module — парсер гео-форматов на базе GPSBabel для qmake-проектов
 
 Небольшой модуль, который встраивается в ваш Qt/qmake-проект и читает
-гео-файлы (**Garmin `.gdb`** и **GPX `.gpx`**), отдавая их в простой модели
-данных, удобной для drag-and-drop в GUI.
+гео-файлы (**Garmin `.gdb`**, **GPX**, **GeoJSON**) и сохраняет их обратно,
+отдавая данные в простой модели, удобной для drag-and-drop в GUI.
 
 Модель данных (`src/geofile.h`) намеренно **не зависит** от внутренностей
 GPSBabel:
@@ -31,7 +31,9 @@ struct GeoData {
 class GeoFileParser {
 public:
     bool parse(const QString& filePath, GeoData& out, QString* error = nullptr);
-    static QStringList supportedExtensions();
+    bool save(const QString& filePath, const GeoData& data, QString* error = nullptr);
+    static QStringList supportedExtensions();      // что умеет parse()
+    static QStringList supportedSaveExtensions();  // что умеет save()
     static bool isSupported(const QString& filePath);
 };
 
@@ -103,12 +105,41 @@ if (parser.parse("/path/to/track.gdb", data, &error)) {
 
 ## Сохранение в файл
 
-`save()` пишет `GeoData` в файл; формат выбирается по расширению:
+`save()` пишет `GeoData` в файл; формат выбирается по расширению. Полный
+пример — собрать данные прямо в рантайме и сохранить:
 
 ```cpp
+#include "geofile.h"
+
+// 1. Собираем модель из своих runtime-данных.
+geo::GeoData data;
+
+geo::GeoPoint p1;
+p1.name        = QStringLiteral("Точка Москва");
+p1.description = QStringLiteral("Красная площадь");
+p1.latitude    = 55.7558;
+p1.longitude   = 37.6173;
+p1.altitude    = 150.0;
+p1.hasAltitude = true;
+
+geo::GeoPoint p2;
+p2.name      = QStringLiteral("Питер");
+p2.latitude  = 59.9391;
+p2.longitude = 30.3159;
+
+data.points = {p1, p2};
+
+geo::GeoRoute route;
+route.name   = QStringLiteral("Маршрут №1");
+route.points = {0, 1, 0};      // индексы в data.points; повтор допустим
+data.routes  = {route};
+
+// 2. Сохраняем; формат — по расширению файла.
 geo::GeoFileParser io;
 QString err;
-io.save("/path/out.gpx", data, &err);      // GPX 1.0
+if (!io.save("/path/out.gpx", data, &err)) {     // GPX 1.0
+    qWarning() << "Ошибка сохранения:" << err;
+}
 io.save("/path/out.gdb", data, &err);      // Garmin GDB (версия 3 = UTF-8)
 io.save("/path/out.geojson", data, &err);  // GeoJSON FeatureCollection (.json — синоним)
 ```
