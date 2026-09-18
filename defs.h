@@ -242,7 +242,7 @@ public:
     new_trkseg(0),
     marked_for_deletion(0) {}
   unsigned int shortname_is_synthetic:1;
-  unsigned int fmt_use:2;			/* lightweight "extra data" */
+  unsigned int fmt_use:8;			/* lightweight "extra data" (wide enough for GDB waypoint classes, which reach 13) */
   unsigned int is_split:1;		/* the waypoint represents a split */
   unsigned int new_trkseg:1;		/* True if first in new trkseg. */
   unsigned int marked_for_deletion:1;		/* True if schedulded for deletion. */

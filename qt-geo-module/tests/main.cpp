@@ -287,6 +287,14 @@ int main(int argc, char** argv)
         geo::GeoData d1;
         check(parser.parse(a, d1, &serr),
               QStringLiteral("gdb-stability: re-parse A (%1)").arg(serr));
+        int sa0 = 0;
+        int sa1 = 0;
+        for (const geo::GeoPoint& pp : d0.points) { sa0 += pp.standalone; }
+        for (const geo::GeoPoint& pp : d1.points) { sa1 += pp.standalone; }
+        // The reference file has 9 user waypoints; its 190 hidden autorouting
+        // points (wpt_class >= 8) must NOT be flagged standalone.
+        check(sa0 == 9, QStringLiteral("gdb-stability: 9 user waypoints standalone (got %1)").arg(sa0));
+        check(sa1 == sa0, QStringLiteral("gdb-stability: standalone stable after resave (%1/%2)").arg(sa1).arg(sa0));
         check(d1.points.size() == d0.points.size() &&
                   d1.routes.size() == d0.routes.size(),
               QStringLiteral("gdb-stability: counts stable (%1/%2 pts, %3/%4 rts)")

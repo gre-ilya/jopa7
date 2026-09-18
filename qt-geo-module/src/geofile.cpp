@@ -31,6 +31,7 @@
 #include "gdb.h"                      // GdbFormat
 #include "gpx.h"                      // GpxFormat
 #include "geojson.h"                  // GeoJsonFormat
+#include "garmin_fs.h"                // garmin_fs_t (waypoint class)
 #include "session.h"                  // session_init, start_session
 #include "src/core/datetime.h"        // gpsbabel::DateTime
 #include "src/core/usasciicodec.h"    // gpsbabel::UsAsciiCodec
@@ -53,6 +54,10 @@ class PointPayload {
 public:
   explicit PointPayload(const Waypoint& w) : wpt(w) {}
   Waypoint wpt;
+  // true = the point was stored in the file's waypoint list (possibly as a
+  // HIDDEN autorouting point).  save() must put it back there even when it is
+  // not user-visible (standalone == false), to keep the file structure.
+  bool fromWaypointList = false;
 };
 
 class RoutePayload {
@@ -443,8 +448,18 @@ bool GeoFileParser::parse(const QString& filePath, GeoData& out,
   };
 
   // 1. Standalone waypoints first, so routes prefer to reference them.
+  // MapSource files keep HIDDEN autorouting points (garmin_fs wpt_class != 0)
+  // in the same waypoint list; MapSource itself does not show them as user
+  // waypoints, so neither do we -- only class-0 points are standalone.  The
+  // hidden ones still reach the output file through the routes that own them.
   for (const Waypoint* wpt : *global_waypoint_list) {
-    addPoint(wpt, /*standalone=*/true);
+    const garmin_fs_t* gmsd = garmin_fs_t::find(wpt);
+    const bool userPoint = (gmsd == nullptr) || (gmsd->wpt_class == 0);
+    const int idx = addPoint(wpt, /*standalone=*/userPoint);
+    if (out.points[idx].payload) {
+      std::const_pointer_cast<detail::PointPayload>(out.points[idx].payload)
+          ->fromWaypointList = true;
+    }
   }
 
   // 2. Routes, mapping each route point onto a shared point index.  Points
@@ -576,10 +591,12 @@ bool GeoFileParser::save(const QString& filePath, const GeoData& data,
     return w;
   };
 
-  // File-level waypoints.  Points that exist only inside a route/track
-  // (standalone == false) are written there, not here.
+  // File-level waypoints: user-visible points (standalone) plus points that
+  // the source file kept in its waypoint list as hidden entries -- writing
+  // them back preserves the original file structure.  Points that exist only
+  // inside a route/track are written there, not here.
   for (const GeoPoint& p : data.points) {
-    if (p.standalone) {
+    if (p.standalone || (p.payload && p.payload->fromWaypointList)) {
       waypt_add(buildWaypoint(p));
     }
   }

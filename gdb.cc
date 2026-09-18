@@ -1271,7 +1271,11 @@ GdbFormat::write_waypoint(
       str = "";
     }
     gdb_write_cstr(str);
-    FWRITE(zbuf, 5);				/* instruction dependent */
+    /* 1 unknown byte + uint32 duration (as read by read_waypoint).  Write the
+       stored duration back instead of zeros so auto-routed intersection
+       points keep their travel time on a gdb->gdb round trip. */
+    FWRITE_C(0);
+    FWRITE_i32(static_cast<int>(garmin_fs_t::get_duration(gmsd, 0)));
 
     /* GBD doesn't have a native description field */
     /* here we misuse the instruction field */
