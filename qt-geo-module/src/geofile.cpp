@@ -125,9 +125,8 @@ int sniffGdbVersion(const QString& filePath)
 
 // Windows-1251 -> Unicode for the high half (0x80..0xFF).  Kept inline so the
 // module stays Qt5/Qt6 portable without QTextCodec / Qt5Compat.
-QString cp1251ToUnicode(const QByteArray& bytes)
-{
-  static const char16_t kHigh[128] = {
+// Windows-1251 upper half (0x80..0xFF) -> Unicode.
+static const char16_t kCp1251High[128] = {
     0x0402, 0x0403, 0x201A, 0x0453, 0x201E, 0x2026, 0x2020, 0x2021,
     0x20AC, 0x2030, 0x0409, 0x2039, 0x040A, 0x040C, 0x040B, 0x040F,
     0x0452, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014,
@@ -144,12 +143,15 @@ QString cp1251ToUnicode(const QByteArray& bytes)
     0x0438, 0x0439, 0x043A, 0x043B, 0x043C, 0x043D, 0x043E, 0x043F,
     0x0440, 0x0441, 0x0442, 0x0443, 0x0444, 0x0445, 0x0446, 0x0447,
     0x0448, 0x0449, 0x044A, 0x044B, 0x044C, 0x044D, 0x044E, 0x044F,
-  };
+};
+
+QString cp1251ToUnicode(const QByteArray& bytes)
+{
   QString out;
   out.reserve(bytes.size());
   for (const char c : bytes) {
     const auto u = static_cast<unsigned char>(c);
-    out += (u < 0x80) ? QChar(u) : QChar(kHigh[u - 0x80]);
+    out += (u < 0x80) ? QChar(u) : QChar(kCp1251High[u - 0x80]);
   }
   return out;
 }
@@ -161,6 +163,33 @@ QString fixEncoding(const QString& s)
   }
   // Undo GPSBabel's fromLatin1 (lossless byte round-trip), re-decode as 1251.
   return cp1251ToUnicode(s.toLatin1());
+}
+
+// The reverse of fixEncoding, for WRITING legacy GDB v1/v2: GPSBabel encodes
+// v1/v2 strings with toLatin1(), which turns Cyrillic into '?'.  Map each
+// character to its Windows-1251 byte and present that byte as the Latin-1
+// character U+00xx, so toLatin1() ends up emitting the correct CP1251 bytes
+// (exactly what a Russian MapSource writes).  Unmappable characters become '?'.
+QString unicodeToCp1251(const QString& s)
+{
+  static const QHash<char16_t, uchar> kReverse = [] {
+    QHash<char16_t, uchar> m;
+    for (int i = 0; i < 128; ++i) {
+      m.insert(kCp1251High[i], static_cast<uchar>(0x80 + i));
+    }
+    return m;
+  }();
+  QString out;
+  out.reserve(s.size());
+  for (const QChar c : s) {
+    const char16_t u = c.unicode();
+    if (u < 0x80) {
+      out += c;
+    } else {
+      out += QChar(kReverse.value(u, uchar('?')));
+    }
+  }
+  return out;
 }
 // ----------------------------------------------------------------------------
 
@@ -363,6 +392,7 @@ bool GeoFileParser::parse(const QString& filePath, GeoData& out, QString* errorM
   // LineString into a track.
   for (const route_head* trk : *global_track_list) {
     GeoRoute route;
+    route.isTrack = true;
     route.name = fixEncoding(trk->rte_name);
     route.description = fixEncoding(trk->rte_desc);
     for (const Waypoint* wpt : trk->waypoint_list) {
@@ -379,6 +409,12 @@ bool GeoFileParser::parse(const QString& filePath, GeoData& out, QString* errorM
 
 bool GeoFileParser::save(const QString& filePath, const GeoData& data,
                          QString* errorMessage)
+{
+  return save(filePath, data, SaveOptions(), errorMessage);
+}
+
+bool GeoFileParser::save(const QString& filePath, const GeoData& data,
+                         const SaveOptions& options, QString* errorMessage)
 {
   auto fail = [&](const QString& msg) {
     if (errorMessage) {
@@ -411,12 +447,23 @@ bool GeoFileParser::save(const QString& filePath, const GeoData& data,
   }
 
   if (ext == QLatin1String("gdb")) {
-    // Write GDB version 3: strings are UTF-8, so Cyrillic (and any other
-    // non-Latin1 text) survives.  Without an explicit "ver" the writer would
-    // emit an invalid version 0 header, because this wrapper bypasses the
-    // vecs option machinery that normally applies the default.
-    setFormatOption(writer.get(), QStringLiteral("ver"), "3");
+    if (options.gdbVersion != 2 && options.gdbVersion != 3) {
+      return fail(QStringLiteral("Unsupported GDB version %1 (use 2 or 3)")
+                      .arg(options.gdbVersion));
+    }
+    // Without an explicit "ver" the writer would emit an invalid version 0
+    // header, because this wrapper bypasses the vecs option machinery that
+    // normally applies the default.  v3 stores strings as UTF-8; for v2 the
+    // strings are pre-transcoded to CP1251 below.
+    setFormatOption(writer.get(), QStringLiteral("ver"),
+                    options.gdbVersion == 2 ? "2" : "3");
   }
+  // Legacy GDB v1/v2 strings must go out as CP1251 bytes (see unicodeToCp1251).
+  const bool cp1251Out =
+      (ext == QLatin1String("gdb")) && (options.gdbVersion < 3);
+  const auto enc = [cp1251Out](const QString& s) {
+    return cp1251Out ? unicodeToCp1251(s) : s;
+  };
 
   QMutexLocker locker(&g_parseMutex);
 
@@ -429,8 +476,8 @@ bool GeoFileParser::save(const QString& filePath, const GeoData& data,
   created.reserve(data.points.size());
   for (const GeoPoint& p : data.points) {
     auto* w = new Waypoint;
-    w->shortname = p.name;
-    w->description = p.description;
+    w->shortname = enc(p.name);
+    w->description = enc(p.description);
     w->latitude = p.latitude;
     w->longitude = p.longitude;
     if (p.hasAltitude) {
@@ -441,11 +488,12 @@ bool GeoFileParser::save(const QString& filePath, const GeoData& data,
   }
   for (const GeoRoute& r : data.routes) {
     auto* rte = new route_head;
-    rte->rte_name = r.name;
-    rte->rte_desc = r.description;
-    // The GeoJSON writer only serializes tracks as LineStrings (it has no
-    // route notion), so feed routes to the track list for that format.
-    const bool asTrack =
+    rte->rte_name = enc(r.name);
+    rte->rte_desc = enc(r.description);
+    // Tracks stay tracks (r.isTrack).  The GeoJSON writer additionally only
+    // serializes tracks as LineStrings (it has no route notion), so for that
+    // format every line goes to the track list.
+    const bool asTrack = r.isTrack ||
         (ext == QLatin1String("geojson") || ext == QLatin1String("json"));
     if (asTrack) {
       track_add_head(rte);

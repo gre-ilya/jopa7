@@ -41,6 +41,12 @@ struct GeoRoute {
   QString       name;
   QString       description;
   QVector<int>  points;  /* indices into GeoData::points, in route order */
+  /*
+   * true when this line came from (or should be written as) a TRACK (trk)
+   * rather than a route (rte): a recorded trail of positions instead of a
+   * planned sequence of named waypoints.  parse() sets it; save() honours it.
+   */
+  bool          isTrack = false;
 };
 
 /* The complete result of parsing one file. */
@@ -49,6 +55,17 @@ struct GeoData {
   QVector<GeoRoute> routes;
 
   bool isEmpty() const { return points.isEmpty() && routes.isEmpty(); }
+};
+
+/* Options for GeoFileParser::save(). */
+struct SaveOptions {
+  /*
+   * GDB version to write: 3 (default; strings are UTF-8) or 2 (legacy
+   * MapSource; strings are written in the Windows-1251 codepage so Cyrillic
+   * survives -- symmetric to how parse() reads v1/v2 files).  Ignored for
+   * non-GDB outputs.
+   */
+  int gdbVersion = 3;
 };
 
 /*
@@ -81,6 +98,10 @@ public:
    * human readable reason.
    */
   bool save(const QString& filePath, const GeoData& data, QString* errorMessage = nullptr);
+
+  /* Same, with explicit options (e.g. SaveOptions{2} for a GDB v2 file). */
+  bool save(const QString& filePath, const GeoData& data,
+            const SaveOptions& options, QString* errorMessage = nullptr);
 
   /* File extensions (without the dot, lower case) this parser understands. */
   static QStringList supportedExtensions();

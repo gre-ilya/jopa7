@@ -21,6 +21,11 @@ struct GeoRoute {        // маршрут = упорядоченные ссыл
     QString      name;
     QString      description;
     QVector<int> points; // индексы в GeoData::points; индекс может повторяться
+    bool         isTrack; // true = это трек (trk), а не маршрут (rte)
+};
+
+struct SaveOptions {
+    int gdbVersion = 3;  // версия GDB при сохранении: 3 (UTF-8) или 2 (CP1251)
 };
 
 struct GeoData {
@@ -32,6 +37,8 @@ class GeoFileParser {
 public:
     bool parse(const QString& filePath, GeoData& out, QString* error = nullptr);
     bool save(const QString& filePath, const GeoData& data, QString* error = nullptr);
+    bool save(const QString& filePath, const GeoData& data,
+              const SaveOptions& options, QString* error = nullptr);
     static QStringList supportedExtensions();      // что умеет parse()
     static QStringList supportedSaveExtensions();  // что умеет save()
     static bool isSupported(const QString& filePath);
@@ -140,54 +147,52 @@ QString err;
 if (!io.save("/path/out.gpx", data, &err)) {     // GPX 1.0
     qWarning() << "Ошибка сохранения:" << err;
 }
-io.save("/path/out.gdb", data, &err);      // Garmin GDB (версия 3 = UTF-8)
+io.save("/path/out.gdb", data, &err);      // Garmin GDB (по умолчанию версия 3 = UTF-8)
 io.save("/path/out.geojson", data, &err);  // GeoJSON FeatureCollection (.json — синоним)
+
+// GDB версии 2 (старый MapSource):
+geo::SaveOptions v2;
+v2.gdbVersion = 2;
+io.save("/path/out_v2.gdb", data, v2, &err);
 ```
 
 Пишутся точки и маршруты; существующий файл перезаписывается. Особенности:
 
-- **GDB** всегда пишется **версией 3** (строки UTF-8), поэтому кириллица
-  сохраняется без плясок с кодировками. Координаты в GDB хранятся как 32-битные
-  semicircles — квантование ~3 мм.
+- **GDB** по умолчанию пишется **версией 3** (строки UTF-8). Через
+  `SaveOptions{2}` можно записать **версию 2**: строки при этом кодируются в
+  **Windows-1251** (как делает русский MapSource), так что кириллица выживает и
+  там — символы, которых нет в CP1251, заменяются на `?`. Координаты в GDB
+  хранятся как 32-битные semicircles — квантование ~3 мм.
+- Маршрут с `isTrack = true` записывается **треком** (`trk`), без него —
+  маршрутом (`rte`); `parse()` выставляет флаг при чтении, так что
+  прочитанный трек при перезаписи остаётся треком.
 - **GeoJSON** не имеет понятия «маршрут», поэтому маршруты записываются как
   `LineString` (в терминах GPSBabel — треки). Вершины `LineString` безымянные,
   так что при обратном чтении они не склеиваются с одноимёнными точками.
 - При чтении (`parse`) **треки** из любых форматов теперь тоже возвращаются в
   `GeoData::routes`, наравне с маршрутами.
 
-## Документ с блокировкой: GeoDocument
+## Что теряется при перезаписи чужих файлов
 
-Для сценария «как в MapSource» — открыл файл → он занят → сохранил → закрыл —
-есть обёртка `GeoDocument` (`src/geodocument.h`):
+Модель `GeoData` намеренно простая, поэтому цикл «прочитать файл MapSource →
+ничего не менять → сохранить этим модулем» **не даёт побайтово тот же файл**.
 
-```cpp
-#include "geodocument.h"
+Сохраняется: имена и описания точек, координаты, высоты, состав и порядок
+маршрутов/треков, их названия, кириллица.
 
-geo::GeoDocument doc;
-QString err;
-if (!doc.open("/path/route.gdb", &err)) {
-    // вторая копия программы получит здесь, например:
-    // "File is already opened by myapp (PID 1234 on host)"
-    QMessageBox::warning(this, "Файл занят", err);
-    return;
-}
+Теряется всё, чего нет в модели:
 
-doc.data().points[0].name = "Новое имя";   // правки в памяти
-doc.save(&err);                            // запись в тот же файл
-doc.saveAs("/path/copy.gpx", &err);        // «Сохранить как» + переезд блокировки
-doc.close();                               // снять блокировку (или деструктор)
-```
+- **GDB:** иконки/символы точек, цвета и режим отображения, категории,
+  глубина/температура/proximity, URL, класс точки (привязки к точкам карты),
+  **геометрия автопрокладки маршрута** (interlink-точки «вдоль дорог» — MapSource
+  покажет прямые линии или пересчитает маршрут заново), время создания точек.
+- **GPX:** метаданные файла (автор, время), `cmt`/`sym`/`type`, **временные
+  метки и скорости точек трека**, расширения Garmin (`gpxx:*`), разбиение трека
+  на сегменты `trkseg`.
 
-Как устроено: при `open()` рядом с файлом создаётся маркер `<файл>.lock`
-(`QLockFile`) с PID/хостом владельца; вторая копия приложения видит его и
-получает отказ с именем владельца. При падении программы «протухший» лок
-определяется по PID и снимается автоматически при следующем открытии.
-
-Ограничение: блокировка **советующая** (advisory) — она защищает от копий
-вашего же приложения на любой ОС, но посторонняя программа, не проверяющая
-маркер, файл не увидит занятым. Жёсткий лок уровня ОС существует только на
-Windows (`CreateFile` без `FILE_SHARE_WRITE`) и при необходимости добавляется
-поверх.
+Для задач «показать/поправить точки и маршруты и сохранить» этого достаточно;
+как «прозрачный» редактор произвольных файлов MapSource модуль использовать не
+стоит — либо расширяйте `GeoPoint`/`GeoRoute` нужными полями.
 
 ## GUI-пример (drag-and-drop)
 

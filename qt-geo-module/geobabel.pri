@@ -56,8 +56,8 @@ INCLUDEPATH *= $$GPSBABEL_SRC    # defs.h, gdb.h, jeeps/..., src/core/... etc.
 # ---------------------------------------------------------------------------
 # Module wrapper sources.
 # ---------------------------------------------------------------------------
-HEADERS += $$MODULE_SRC/geofile.h $$MODULE_SRC/geodocument.h
-SOURCES += $$MODULE_SRC/geofile.cpp $$MODULE_SRC/geodocument.cpp
+HEADERS += $$MODULE_SRC/geofile.h
+SOURCES += $$MODULE_SRC/geofile.cpp
 # gb_fatal.cpp REPLACES the upstream fatal.cc: it throws on a fatal parse error
 # instead of calling exit(1), so a bad file cannot kill the host application.
 SOURCES += $$MODULE_SRC/gb_fatal.cpp

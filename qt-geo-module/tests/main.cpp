@@ -11,11 +11,11 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QFile>
 #include <QString>
 #include <QTemporaryDir>
 
 #include "geofile.h"
-#include "geodocument.h"
 
 static int failures = 0;
 
@@ -131,67 +131,60 @@ int main(int argc, char** argv)
       check(!back.routes.isEmpty() && back.routes[0].points.size() == 3,
             QStringLiteral(".%1: route with 3 points survives").arg(ext));
     }
-  }
 
-  // ---- GeoDocument: open-with-lock / edit / save / close.
-  {
-    QTemporaryDir tmp;
-    check(tmp.isValid(), QStringLiteral("temporary dir for GeoDocument tests"));
-    const QString docPath = tmp.filePath(QStringLiteral("doc.gpx"));
-
-    // Prepare a document on disk.
+    // ---- GDB version 2 (legacy MapSource, CP1251 strings).
     {
-      geo::GeoData src;
-      geo::GeoPoint p;
-      p.name = QString::fromUtf8("База");
-      p.latitude = 55.0;
-      p.longitude = 37.0;
-      src.points = {p};
+      const QString out2 = tmp.filePath(QStringLiteral("out_v2.gdb"));
       QString serr;
-      check(parser.save(docPath, src, &serr),
-            QStringLiteral("GeoDocument: prepare file (%1)").arg(serr));
+      geo::SaveOptions opts;
+      opts.gdbVersion = 2;
+      check(parser.save(out2, src, opts, &serr),
+            QStringLiteral("save GDB v2 (%1)").arg(serr));
+
+      // The header must carry the v2 letter: "MsRcf\0" + reclen + 'D' + 'l'.
+      QFile f(out2);
+      check(f.open(QIODevice::ReadOnly), QStringLiteral("v2: open for header"));
+      const QByteArray head = f.read(12);
+      check(head.size() == 12 && head.at(10) == 'D' && head.at(11) == 'l',
+            QStringLiteral("v2: header version letter is 'l' (GDB v2)"));
+
+      // Round trip: parse() re-decodes v1/v2 strings from CP1251, so the
+      // Cyrillic names written by the CP1251 encoder must come back intact.
+      geo::GeoData back;
+      check(parser.parse(out2, back, &serr),
+            QStringLiteral("v2: re-parse (%1)").arg(serr));
+      bool cyr = false;
+      for (const geo::GeoPoint& p : back.points) {
+        if (p.name == a.name && p.description == a.description) {
+          cyr = true;
+        }
+      }
+      check(cyr, QStringLiteral("v2: Cyrillic name+description survive CP1251"));
+      check(!back.routes.isEmpty() &&
+                back.routes[0].name == r.name &&
+                back.routes[0].points.size() == 3,
+            QStringLiteral("v2: Cyrillic route with 3 points survives"));
+
+      // An unsupported version must be refused up front.
+      check(!parser.save(out2, src, geo::SaveOptions{7}, &serr),
+            QStringLiteral("v2: version 7 rejected (%1)").arg(serr));
     }
 
-    geo::GeoDocument doc1;
-    QString derr;
-    check(doc1.open(docPath, &derr),
-          QStringLiteral("GeoDocument: first open succeeds (%1)").arg(derr));
-    check(doc1.isOpen() && doc1.filePath() == docPath,
-          QStringLiteral("GeoDocument: isOpen/filePath"));
-
-    // A second document (second app copy) must be refused while locked.
-    geo::GeoDocument doc2;
-    QString berr;
-    check(!doc2.open(docPath, &berr),
-          QStringLiteral("GeoDocument: second open refused (%1)").arg(berr));
-
-    // Edit in memory, save, close.
-    doc1.data().points[0].name = QString::fromUtf8("База-2");
-    check(doc1.save(&derr),
-          QStringLiteral("GeoDocument: save (%1)").arg(derr));
-    doc1.close();
-    check(!doc1.isOpen(), QStringLiteral("GeoDocument: closed"));
-
-    // After close the file is free again and carries the edit.
-    check(doc2.open(docPath, &berr),
-          QStringLiteral("GeoDocument: open after close (%1)").arg(berr));
-    check(!doc2.data().points.isEmpty() &&
-              doc2.data().points[0].name == QString::fromUtf8("База-2"),
-          QStringLiteral("GeoDocument: edit persisted"));
-
-    // saveAs moves the document (and the lock) to a new path.
-    const QString docPath2 = tmp.filePath(QStringLiteral("doc2.gpx"));
-    check(doc2.saveAs(docPath2, &berr),
-          QStringLiteral("GeoDocument: saveAs (%1)").arg(berr));
-    check(doc2.filePath() == docPath2,
-          QStringLiteral("GeoDocument: filePath follows saveAs"));
-    geo::GeoDocument doc3;
-    check(doc3.open(docPath, &berr),
-          QStringLiteral("GeoDocument: old path unlocked after saveAs"));
-    geo::GeoDocument doc4;
-    check(!doc4.open(docPath2, &berr),
-          QStringLiteral("GeoDocument: new path locked by saveAs owner (%1)")
-              .arg(berr));
+    // ---- isTrack: a track saved to GDB must come back as a track.
+    {
+      geo::GeoData tsrc = src;
+      tsrc.routes[0].isTrack = true;
+      const QString outT = tmp.filePath(QStringLiteral("out_trk.gdb"));
+      QString serr;
+      check(parser.save(outT, tsrc, &serr),
+            QStringLiteral("track: save (%1)").arg(serr));
+      geo::GeoData back;
+      check(parser.parse(outT, back, &serr),
+            QStringLiteral("track: re-parse (%1)").arg(serr));
+      check(!back.routes.isEmpty() && back.routes[0].isTrack &&
+                back.routes[0].points.size() == 3,
+            QStringLiteral("track: stays a track with 3 points"));
+    }
   }
 
   printf(failures == 0 ? "\nALL TESTS PASSED\n" : "\n%d TEST(S) FAILED\n",
