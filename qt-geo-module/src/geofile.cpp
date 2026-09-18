@@ -15,6 +15,7 @@
 #include <clocale>          // for setlocale, LC_NUMERIC, LC_TIME
 #include <functional>       // for std::function
 #include <memory>           // for std::unique_ptr
+#include <vector>           // for std::vector (route payload)
 
 #include <QFile>
 #include <QFileInfo>
@@ -41,6 +42,36 @@ extern RouteList* global_route_list;
 extern RouteList* global_track_list;
 
 namespace geo {
+
+// --- Full-fidelity payloads (opaque in the public header) -------------------
+// Complete copies of what GPSBabel parsed.  Waypoint's copy constructor deep
+// copies the format-specific chain (garmin_fs with icons/categories/ilinks,
+// fs_xml with GPX extensions), so one Waypoint copy carries everything.
+namespace detail {
+
+class PointPayload {
+public:
+  explicit PointPayload(const Waypoint& w) : wpt(w) {}
+  Waypoint wpt;
+};
+
+class RoutePayload {
+public:
+  RoutePayload() = default;
+  RoutePayload(const RoutePayload&) = delete;
+  RoutePayload& operator=(const RoutePayload&) = delete;
+  ~RoutePayload() { fs.FsChainDestroy(); }  // manual chain ownership
+
+  std::vector<Waypoint> wpts;  // the line's own point copies, in order
+  UrlList urls;
+  int rteNum = 0;
+  FormatSpecificDataList fs;   // deep copy (FsChainCopy)
+  gb_color lineColor;
+  int lineWidth = -1;
+};
+
+}  // namespace detail
+// ----------------------------------------------------------------------------
 
 namespace {
 
@@ -216,7 +247,39 @@ GeoPoint toGeoPoint(const Waypoint* wpt)
     p.altitude = wpt->altitude;
     p.hasAltitude = true;
   }
+  // Full-fidelity copy; visible strings normalized the same way as above so
+  // the projection and the payload stay directly comparable.
+  auto payload = std::make_shared<detail::PointPayload>(*wpt);
+  if (g_reencodeCp1251) {
+    payload->wpt.shortname = fixEncoding(payload->wpt.shortname);
+    payload->wpt.description = fixEncoding(payload->wpt.description);
+    payload->wpt.notes = fixEncoding(payload->wpt.notes);
+  }
+  p.payload = std::move(payload);
   return p;
+}
+
+// Capture the full-fidelity payload of one route/track head.
+std::shared_ptr<const detail::RoutePayload> captureRoutePayload(
+    const route_head* rte)
+{
+  auto payload = std::make_shared<detail::RoutePayload>();
+  payload->urls = rte->rte_urls;
+  payload->rteNum = rte->rte_num;
+  payload->fs = rte->fs.FsChainCopy();
+  payload->lineColor = rte->line_color;
+  payload->lineWidth = rte->line_width;
+  payload->wpts.reserve(rte->rte_waypt_ct());
+  for (const Waypoint* wpt : rte->waypoint_list) {
+    payload->wpts.emplace_back(*wpt);
+    if (g_reencodeCp1251) {
+      Waypoint& w = payload->wpts.back();
+      w.shortname = fixEncoding(w.shortname);
+      w.description = fixEncoding(w.description);
+      w.notes = fixEncoding(w.notes);
+    }
+  }
+  return payload;
 }
 
 // Create the right reader for a given extension.  Extend this map to support
@@ -359,30 +422,35 @@ bool GeoFileParser::parse(const QString& filePath, GeoData& out, QString* errorM
   // shared point and so a point used several times collapses to one entry.
   QHash<QString, int> indexByKey;
 
-  auto addPoint = [&](const Waypoint* wpt) -> int {
+  auto addPoint = [&](const Waypoint* wpt, bool standalone) -> int {
     const QString key = pointKey(wpt->shortname, wpt->latitude, wpt->longitude);
     auto it = indexByKey.constFind(key);
     if (it != indexByKey.constEnd()) {
       return it.value();
     }
     const int idx = out.points.size();
-    out.points.append(toGeoPoint(wpt));
+    GeoPoint p = toGeoPoint(wpt);
+    p.standalone = standalone;
+    out.points.append(std::move(p));
     indexByKey.insert(key, idx);
     return idx;
   };
 
   // 1. Standalone waypoints first, so routes prefer to reference them.
   for (const Waypoint* wpt : *global_waypoint_list) {
-    addPoint(wpt);
+    addPoint(wpt, /*standalone=*/true);
   }
 
-  // 2. Routes, mapping each route point onto a shared point index.
+  // 2. Routes, mapping each route point onto a shared point index.  Points
+  // that exist only inside a route are marked non-standalone so that save()
+  // does not promote them to file-level waypoints.
   for (const route_head* rte : *global_route_list) {
     GeoRoute route;
     route.name = fixEncoding(rte->rte_name);
     route.description = fixEncoding(rte->rte_desc);
+    route.payload = captureRoutePayload(rte);
     for (const Waypoint* wpt : rte->waypoint_list) {
-      route.points.append(addPoint(wpt));
+      route.points.append(addPoint(wpt, /*standalone=*/false));
     }
     out.routes.append(route);
   }
@@ -395,8 +463,9 @@ bool GeoFileParser::parse(const QString& filePath, GeoData& out, QString* errorM
     route.isTrack = true;
     route.name = fixEncoding(trk->rte_name);
     route.description = fixEncoding(trk->rte_desc);
+    route.payload = captureRoutePayload(trk);
     for (const Waypoint* wpt : trk->waypoint_list) {
-      route.points.append(addPoint(wpt));
+      route.points.append(addPoint(wpt, /*standalone=*/false));
     }
     out.routes.append(route);
   }
@@ -472,24 +541,51 @@ bool GeoFileParser::save(const QString& filePath, const GeoData& data,
   // waypt_add() records the current session on every waypoint, so a session
   // must be started before populating the lists (same as on the parse path).
   start_session(ext, filePath);
-  QVector<const Waypoint*> created;
-  created.reserve(data.points.size());
-  for (const GeoPoint& p : data.points) {
-    auto* w = new Waypoint;
+
+  // Build a full Waypoint for a GeoPoint: start from the fidelity payload
+  // when there is one (icons, timestamps, extensions, ... survive), then
+  // overlay the editable projection fields.
+  const auto buildWaypoint = [&enc](const GeoPoint& p) -> Waypoint* {
+    Waypoint* w = p.payload ? new Waypoint(p.payload->wpt) : new Waypoint;
+    if (p.payload) {
+      // Keep the original description/notes split when the projection was
+      // derived from it unchanged (parse() falls back to notes when the
+      // description is empty).
+      const Waypoint& base = p.payload->wpt;
+      const QString projected =
+          !base.description.isEmpty() ? base.description : base.notes;
+      w->description =
+          enc(p.description == projected ? base.description : p.description);
+      w->notes = enc(w->notes);
+    } else {
+      w->description = enc(p.description);
+    }
     w->shortname = enc(p.name);
-    w->description = enc(p.description);
     w->latitude = p.latitude;
     w->longitude = p.longitude;
-    if (p.hasAltitude) {
-      w->altitude = p.altitude;
+    w->altitude = p.hasAltitude ? p.altitude : unknown_alt;
+    return w;
+  };
+
+  // File-level waypoints.  Points that exist only inside a route/track
+  // (standalone == false) are written there, not here.
+  for (const GeoPoint& p : data.points) {
+    if (p.standalone) {
+      waypt_add(buildWaypoint(p));
     }
-    waypt_add(w);
-    created.append(w);
   }
   for (const GeoRoute& r : data.routes) {
     auto* rte = new route_head;
     rte->rte_name = enc(r.name);
     rte->rte_desc = enc(r.description);
+    const detail::RoutePayload* rp = r.payload.get();
+    if (rp) {
+      rte->rte_urls = rp->urls;
+      rte->rte_num = rp->rteNum;
+      rte->fs = rp->fs.FsChainCopy();  // route_head dtor destroys its chain
+      rte->line_color = rp->lineColor;
+      rte->line_width = rp->lineWidth;
+    }
     // Tracks stay tracks (r.isTrack).  The GeoJSON writer additionally only
     // serializes tracks as LineStrings (it has no route notion), so for that
     // format every line goes to the track list.
@@ -500,8 +596,31 @@ bool GeoFileParser::save(const QString& filePath, const GeoData& data,
     } else {
       route_add_head(rte);
     }
-    for (const int idx : r.points) {
-      auto* w = new Waypoint(*created[idx]);
+    // If the line's composition is unchanged, use the positional per-point
+    // payload copies: they carry what only exists inside the line (per-point
+    // autorouting geometry, trackpoint timestamps/speeds, trkseg splits).
+    // Otherwise fall back to the referenced points' own payloads.
+    const bool positional =
+        rp && static_cast<int>(rp->wpts.size()) == r.points.size();
+    for (int i = 0; i < r.points.size(); ++i) {
+      const GeoPoint& gp = data.points[r.points[i]];
+      Waypoint* w;
+      if (positional) {
+        const Waypoint& base = rp->wpts[static_cast<size_t>(i)];
+        w = new Waypoint(base);
+        const QString projected =
+            !base.description.isEmpty() ? base.description : base.notes;
+        w->shortname = enc(gp.name);
+        w->description =
+            enc(gp.description == projected ? base.description
+                                            : gp.description);
+        w->notes = enc(w->notes);
+        w->latitude = gp.latitude;
+        w->longitude = gp.longitude;
+        w->altitude = gp.hasAltitude ? gp.altitude : unknown_alt;
+      } else {
+        w = buildWaypoint(gp);
+      }
       if (asTrack) {
         track_add_wpt(rte, w);
       } else {

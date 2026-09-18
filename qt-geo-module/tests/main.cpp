@@ -12,6 +12,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QString>
 #include <QTemporaryDir>
 
@@ -184,6 +185,101 @@ int main(int argc, char** argv)
       check(!back.routes.isEmpty() && back.routes[0].isTrack &&
                 back.routes[0].points.size() == 3,
             QStringLiteral("track: stays a track with 3 points"));
+    }
+
+    // ---- Fidelity payload: information outside the simple model must
+    // survive a load -> save cycle (GPX: symbol, waypoint time, trackpoint
+    // times, trkseg split).
+    {
+      const QString in = tmp.filePath(QStringLiteral("fid_in.gpx"));
+      {
+        QFile f(in);
+        check(f.open(QIODevice::WriteOnly), QStringLiteral("fidelity: write input"));
+        f.write(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+            "<gpx version=\"1.0\" creator=\"test\">\n"
+            "  <wpt lat=\"55.7558\" lon=\"37.6173\">\n"
+            "    <ele>150.0</ele>\n"
+            "    <time>2020-05-01T10:20:30Z</time>\n"
+            "    <name>Fid1</name>\n"
+            "    <cmt>comment text</cmt>\n"
+            "    <sym>Flag, Blue</sym>\n"
+            "  </wpt>\n"
+            "  <trk><name>T1</name>\n"
+            "    <trkseg>\n"
+            "      <trkpt lat=\"55.0\" lon=\"37.0\"><time>2020-05-01T11:00:00Z</time></trkpt>\n"
+            "      <trkpt lat=\"55.1\" lon=\"37.1\"><time>2020-05-01T11:00:10Z</time></trkpt>\n"
+            "    </trkseg>\n"
+            "    <trkseg>\n"
+            "      <trkpt lat=\"55.2\" lon=\"37.2\"><time>2020-05-01T11:05:00Z</time></trkpt>\n"
+            "    </trkseg>\n"
+            "  </trk>\n"
+            "</gpx>\n");
+      }
+
+      geo::GeoData d;
+      QString serr;
+      check(parser.parse(in, d, &serr),
+            QStringLiteral("fidelity: parse (%1)").arg(serr));
+      // Edit ONLY the waypoint name; everything else must be preserved.
+      for (geo::GeoPoint& p : d.points) {
+        if (p.name == QLatin1String("Fid1")) {
+          p.name = QStringLiteral("Fid1-edited");
+        }
+      }
+      const QString out = tmp.filePath(QStringLiteral("fid_out.gpx"));
+      check(parser.save(out, d, &serr),
+            QStringLiteral("fidelity: save (%1)").arg(serr));
+
+      QFile f(out);
+      check(f.open(QIODevice::ReadOnly), QStringLiteral("fidelity: read output"));
+      const QString text = QString::fromUtf8(f.readAll());
+      check(text.contains(QLatin1String("Fid1-edited")),
+            QStringLiteral("fidelity: edited name written"));
+      check(text.contains(QLatin1String("Flag, Blue")),
+            QStringLiteral("fidelity: waypoint symbol survives"));
+      check(text.contains(QLatin1String("2020-05-01T10:20:30Z")),
+            QStringLiteral("fidelity: waypoint time survives"));
+      check(text.contains(QLatin1String("2020-05-01T11:00:10Z")) &&
+                text.contains(QLatin1String("2020-05-01T11:05:00Z")),
+            QStringLiteral("fidelity: trackpoint times survive"));
+      check(text.count(QLatin1String("<trkseg>")) == 2,
+            QStringLiteral("fidelity: trkseg split survives"));
+      check(text.count(QLatin1String("<wpt ")) == 1,
+            QStringLiteral("fidelity: trackpoints are not promoted to wpt"));
+    }
+
+    // ---- Fidelity payload, GDB: resaving must be stable (idempotent) and
+    // keep the structure of a real MapSource file.
+    {
+      const QString sample =
+          QFileInfo(path).dir().filePath(QStringLiteral("../../../reference/gdb-sample-v3.gdb"));
+      geo::GeoData d0;
+      QString serr;
+      if (parser.parse(sample, d0, &serr)) {
+        const QString a = tmp.filePath(QStringLiteral("stab_a.gdb"));
+        const QString b = tmp.filePath(QStringLiteral("stab_b.gdb"));
+        check(parser.save(a, d0, &serr),
+              QStringLiteral("gdb-stability: save A (%1)").arg(serr));
+        geo::GeoData d1;
+        check(parser.parse(a, d1, &serr),
+              QStringLiteral("gdb-stability: re-parse A (%1)").arg(serr));
+        check(d1.points.size() == d0.points.size() &&
+                  d1.routes.size() == d0.routes.size(),
+              QStringLiteral("gdb-stability: counts stable (%1/%2 pts, %3/%4 rts)")
+                  .arg(d1.points.size()).arg(d0.points.size())
+                  .arg(d1.routes.size()).arg(d0.routes.size()));
+        check(parser.save(b, d1, &serr),
+              QStringLiteral("gdb-stability: save B (%1)").arg(serr));
+        QFile fa(a);
+        QFile fb(b);
+        fa.open(QIODevice::ReadOnly);
+        fb.open(QIODevice::ReadOnly);
+        check(fa.readAll() == fb.readAll(),
+              QStringLiteral("gdb-stability: A == B (byte-identical resave)"));
+      } else {
+        printf("  skip - gdb-stability (reference sample not found)\n");
+      }
     }
   }
 

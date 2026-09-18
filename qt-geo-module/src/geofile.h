@@ -16,11 +16,26 @@
 #ifndef GEOFILE_H_INCLUDED_
 #define GEOFILE_H_INCLUDED_
 
+#include <memory>
+
 #include <QString>
 #include <QStringList>
 #include <QVector>
 
 namespace geo {
+
+namespace detail {
+/*
+ * Opaque full-fidelity payloads.  parse() attaches to every point/route a
+ * complete copy of what GPSBabel read (icons, categories, timestamps, track
+ * point speeds, autorouting geometry, GPX extensions, ...).  save() uses the
+ * payload as the base and overlays the editable fields below, so information
+ * that is not part of the simple model survives a load-edit-save cycle.
+ * Application code can ignore these entirely.
+ */
+class PointPayload;
+class RoutePayload;
+}  // namespace detail
 
 /* A single geographic point. */
 struct GeoPoint {
@@ -30,6 +45,14 @@ struct GeoPoint {
   double  longitude = 0.0;  /* degrees, WGS84 */
   double  altitude  = 0.0;  /* meters; only meaningful if hasAltitude       */
   bool    hasAltitude = false;
+  /*
+   * true = a standalone waypoint of the file; false = the point exists only
+   * inside a route/track (e.g. an unnamed trackpoint).  save() writes only
+   * standalone points into the file's waypoint list, so re-saving a file with
+   * a long track does not flood it with hundreds of new waypoints.
+   */
+  bool    standalone = true;
+  std::shared_ptr<const detail::PointPayload> payload;  /* see detail above */
 };
 
 /*
@@ -47,6 +70,7 @@ struct GeoRoute {
    * planned sequence of named waypoints.  parse() sets it; save() honours it.
    */
   bool          isTrack = false;
+  std::shared_ptr<const detail::RoutePayload> payload;  /* see detail above */
 };
 
 /* The complete result of parsing one file. */
