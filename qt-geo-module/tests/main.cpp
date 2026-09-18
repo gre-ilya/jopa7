@@ -249,6 +249,29 @@ int main(int argc, char** argv)
             QStringLiteral("fidelity: trackpoints are not promoted to wpt"));
     }
 
+    // ---- ParseOptions{includeTracks=false}: no trackpoints in the pool.
+    {
+      const QString in = tmp.filePath(QStringLiteral("fid_in.gpx"));
+      geo::GeoData all;
+      geo::GeoData noTrk;
+      QString serr;
+      check(parser.parse(in, all, &serr),
+            QStringLiteral("no-tracks: parse default (%1)").arg(serr));
+      geo::ParseOptions po;
+      po.includeTracks = false;
+      check(parser.parse(in, noTrk, po, &serr),
+            QStringLiteral("no-tracks: parse with option (%1)").arg(serr));
+      check(all.points.size() > noTrk.points.size(),
+            QStringLiteral("no-tracks: fewer pool points without tracks"));
+      check(noTrk.points.size() == 1 && noTrk.points[0].standalone,
+            QStringLiteral("no-tracks: only the standalone waypoint remains"));
+      bool anyTrack = false;
+      for (const geo::GeoRoute& r2 : noTrk.routes) {
+        anyTrack = anyTrack || r2.isTrack;
+      }
+      check(!anyTrack, QStringLiteral("no-tracks: no track routes produced"));
+    }
+
     // ---- Fidelity payload, GDB: resaving must be stable (idempotent) and
     // keep the structure of a real MapSource file.
     {

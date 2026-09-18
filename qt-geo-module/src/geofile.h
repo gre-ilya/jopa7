@@ -81,6 +81,18 @@ struct GeoData {
   bool isEmpty() const { return points.isEmpty() && routes.isEmpty(); }
 };
 
+/* Options for GeoFileParser::parse(). */
+struct ParseOptions {
+  /*
+   * false = ignore tracks entirely: no GeoRoute with isTrack is produced and
+   * no pool points are created from trackpoints.  WARNING: data parsed this
+   * way and then save()d over the original file will LOSE the file's tracks.
+   * If you only want to hide trackpoints in the UI, filter by
+   * GeoPoint::standalone instead of disabling tracks here.
+   */
+  bool includeTracks = true;
+};
+
 /* Options for GeoFileParser::save(). */
 struct SaveOptions {
   /*
@@ -112,6 +124,10 @@ public:
    * stores a human readable reason.
    */
   bool parse(const QString& filePath, GeoData& out, QString* errorMessage = nullptr);
+
+  /* Same, with explicit options (e.g. ParseOptions{false} to skip tracks). */
+  bool parse(const QString& filePath, GeoData& out,
+             const ParseOptions& options, QString* errorMessage = nullptr);
 
   /*
    * Save data to the file at filePath.  The format is chosen from the file

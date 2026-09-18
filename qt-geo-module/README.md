@@ -27,6 +27,10 @@ struct GeoRoute {        // маршрут = упорядоченные ссыл
     // + непрозрачный payload полной информации (см. «Полнота при перезаписи»)
 };
 
+struct ParseOptions {
+    bool includeTracks = true;  // false = не читать треки вовсе (см. ниже)
+};
+
 struct SaveOptions {
     int gdbVersion = 3;  // версия GDB при сохранении: 3 (UTF-8) или 2 (CP1251)
 };
@@ -39,6 +43,8 @@ struct GeoData {
 class GeoFileParser {
 public:
     bool parse(const QString& filePath, GeoData& out, QString* error = nullptr);
+    bool parse(const QString& filePath, GeoData& out,
+               const ParseOptions& options, QString* error = nullptr);
     bool save(const QString& filePath, const GeoData& data, QString* error = nullptr);
     bool save(const QString& filePath, const GeoData& data,
               const SaveOptions& options, QString* error = nullptr);
@@ -194,7 +200,20 @@ GDB, GPX-расширения `gpxx:*`, цвет/стиль линии, URL...).
 
 - **Точки, живущие только в маршруте/треке** (например, безымянные точки
   трека), помечаются `standalone = false` и при сохранении **не**
-  дублируются в список путевых точек файла.
+  дублируются в список путевых точек файла. **В GUI показывайте только
+  `p.standalone == true`** — иначе список точек «зальёт» точками треков:
+
+  ```cpp
+  for (const geo::GeoPoint& p : data.points) {
+      if (!p.standalone) continue;   // точки треков пропускаем
+      addRowToTable(p);
+  }
+  ```
+- Если треки не нужны вовсе — `ParseOptions po; po.includeTracks = false;
+  parser.parse(path, data, po, &err);` — точки из треков тогда не создаются.
+  ⚠️ Но данные, прочитанные без треков, при `save()` поверх исходного файла
+  **потеряют его треки** — для сценария «открыл-правил-сохранил» используйте
+  фильтр по `standalone`, а не эту опцию.
 - Проверено тестами: пересохранение реального файла MapSource **байт-в-байт
   идемпотентно** (A → B → B == A), в GPX выживают `sym`, `<time>` точки,
   времена точек трека и второй `<trkseg>`; правка имени при этом применяется.

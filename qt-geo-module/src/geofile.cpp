@@ -365,6 +365,12 @@ bool GeoFileParser::isSupported(const QString& filePath)
 
 bool GeoFileParser::parse(const QString& filePath, GeoData& out, QString* errorMessage)
 {
+  return parse(filePath, out, ParseOptions(), errorMessage);
+}
+
+bool GeoFileParser::parse(const QString& filePath, GeoData& out,
+                          const ParseOptions& options, QString* errorMessage)
+{
   auto fail = [&](const QString& msg) {
     if (errorMessage) {
       *errorMessage = msg;
@@ -457,17 +463,20 @@ bool GeoFileParser::parse(const QString& filePath, GeoData& out, QString* errorM
 
   // 3. Tracks, exposed the same way as routes.  Some formats only have this
   // notion for an ordered line: e.g. the GeoJSON reader turns every
-  // LineString into a track.
-  for (const route_head* trk : *global_track_list) {
-    GeoRoute route;
-    route.isTrack = true;
-    route.name = fixEncoding(trk->rte_name);
-    route.description = fixEncoding(trk->rte_desc);
-    route.payload = captureRoutePayload(trk);
-    for (const Waypoint* wpt : trk->waypoint_list) {
-      route.points.append(addPoint(wpt, /*standalone=*/false));
+  // LineString into a track.  Skipped entirely when the caller opted out
+  // (note: data parsed without tracks loses them on a subsequent save()).
+  if (options.includeTracks) {
+    for (const route_head* trk : *global_track_list) {
+      GeoRoute route;
+      route.isTrack = true;
+      route.name = fixEncoding(trk->rte_name);
+      route.description = fixEncoding(trk->rte_desc);
+      route.payload = captureRoutePayload(trk);
+      for (const Waypoint* wpt : trk->waypoint_list) {
+        route.points.append(addPoint(wpt, /*standalone=*/false));
+      }
+      out.routes.append(route);
     }
-    out.routes.append(route);
   }
 
   // Leave the global lists empty for the next caller.
