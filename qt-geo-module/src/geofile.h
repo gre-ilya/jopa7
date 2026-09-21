@@ -16,26 +16,11 @@
 #ifndef GEOFILE_H_INCLUDED_
 #define GEOFILE_H_INCLUDED_
 
-#include <memory>
-
 #include <QString>
 #include <QStringList>
 #include <QVector>
 
 namespace geo {
-
-namespace detail {
-/*
- * Opaque full-fidelity payloads.  parse() attaches to every point/route a
- * complete copy of what GPSBabel read (icons, categories, timestamps, track
- * point speeds, autorouting geometry, GPX extensions, ...).  save() uses the
- * payload as the base and overlays the editable fields below, so information
- * that is not part of the simple model survives a load-edit-save cycle.
- * Application code can ignore these entirely.
- */
-class PointPayload;
-class RoutePayload;
-}  // namespace detail
 
 /* A single geographic point. */
 struct GeoPoint {
@@ -45,14 +30,6 @@ struct GeoPoint {
   double  longitude = 0.0;  /* degrees, WGS84 */
   double  altitude  = 0.0;  /* meters; only meaningful if hasAltitude       */
   bool    hasAltitude = false;
-  /*
-   * true = a standalone waypoint of the file; false = the point exists only
-   * inside a route/track (e.g. an unnamed trackpoint).  save() writes only
-   * standalone points into the file's waypoint list, so re-saving a file with
-   * a long track does not flood it with hundreds of new waypoints.
-   */
-  bool    standalone = true;
-  std::shared_ptr<const detail::PointPayload> payload;  /* see detail above */
 };
 
 /*
@@ -64,13 +41,6 @@ struct GeoRoute {
   QString       name;
   QString       description;
   QVector<int>  points;  /* indices into GeoData::points, in route order */
-  /*
-   * true when this line came from (or should be written as) a TRACK (trk)
-   * rather than a route (rte): a recorded trail of positions instead of a
-   * planned sequence of named waypoints.  parse() sets it; save() honours it.
-   */
-  bool          isTrack = false;
-  std::shared_ptr<const detail::RoutePayload> payload;  /* see detail above */
 };
 
 /* The complete result of parsing one file. */
@@ -79,29 +49,6 @@ struct GeoData {
   QVector<GeoRoute> routes;
 
   bool isEmpty() const { return points.isEmpty() && routes.isEmpty(); }
-};
-
-/* Options for GeoFileParser::parse(). */
-struct ParseOptions {
-  /*
-   * false = ignore tracks entirely: no GeoRoute with isTrack is produced and
-   * no pool points are created from trackpoints.  WARNING: data parsed this
-   * way and then save()d over the original file will LOSE the file's tracks.
-   * If you only want to hide trackpoints in the UI, filter by
-   * GeoPoint::standalone instead of disabling tracks here.
-   */
-  bool includeTracks = true;
-};
-
-/* Options for GeoFileParser::save(). */
-struct SaveOptions {
-  /*
-   * GDB version to write: 3 (default; strings are UTF-8) or 2 (legacy
-   * MapSource; strings are written in the Windows-1251 codepage so Cyrillic
-   * survives -- symmetric to how parse() reads v1/v2 files).  Ignored for
-   * non-GDB outputs.
-   */
-  int gdbVersion = 3;
 };
 
 /*
@@ -125,10 +72,6 @@ public:
    */
   bool parse(const QString& filePath, GeoData& out, QString* errorMessage = nullptr);
 
-  /* Same, with explicit options (e.g. ParseOptions{false} to skip tracks). */
-  bool parse(const QString& filePath, GeoData& out,
-             const ParseOptions& options, QString* errorMessage = nullptr);
-
   /*
    * Save data to the file at filePath.  The format is chosen from the file
    * extension: .gdb (Garmin MapSource, written as version 3 = UTF-8),
@@ -138,10 +81,6 @@ public:
    * human readable reason.
    */
   bool save(const QString& filePath, const GeoData& data, QString* errorMessage = nullptr);
-
-  /* Same, with explicit options (e.g. SaveOptions{2} for a GDB v2 file). */
-  bool save(const QString& filePath, const GeoData& data,
-            const SaveOptions& options, QString* errorMessage = nullptr);
 
   /* File extensions (without the dot, lower case) this parser understands. */
   static QStringList supportedExtensions();

@@ -15,25 +15,12 @@ struct GeoPoint {        // географическая точка
     QString description;
     double  latitude, longitude, altitude;
     bool    hasAltitude;
-    bool    standalone;  // true = видимая путевая точка; false = служебная
-                         // (точка трека или скрытая точка автопрокладки)
-    // + непрозрачный payload полной информации (см. «Полнота при перезаписи»)
 };
 
 struct GeoRoute {        // маршрут = упорядоченные ссылки на точки
     QString      name;
     QString      description;
     QVector<int> points; // индексы в GeoData::points; индекс может повторяться
-    bool         isTrack; // true = это трек (trk), а не маршрут (rte)
-    // + непрозрачный payload полной информации (см. «Полнота при перезаписи»)
-};
-
-struct ParseOptions {
-    bool includeTracks = true;  // false = не читать треки вовсе (см. ниже)
-};
-
-struct SaveOptions {
-    int gdbVersion = 3;  // версия GDB при сохранении: 3 (UTF-8) или 2 (CP1251)
 };
 
 struct GeoData {
@@ -44,11 +31,7 @@ struct GeoData {
 class GeoFileParser {
 public:
     bool parse(const QString& filePath, GeoData& out, QString* error = nullptr);
-    bool parse(const QString& filePath, GeoData& out,
-               const ParseOptions& options, QString* error = nullptr);
     bool save(const QString& filePath, const GeoData& data, QString* error = nullptr);
-    bool save(const QString& filePath, const GeoData& data,
-              const SaveOptions& options, QString* error = nullptr);
     static QStringList supportedExtensions();      // что умеет parse()
     static QStringList supportedSaveExtensions();  // что умеет save()
     static bool isSupported(const QString& filePath);
@@ -157,80 +140,20 @@ QString err;
 if (!io.save("/path/out.gpx", data, &err)) {     // GPX 1.0
     qWarning() << "Ошибка сохранения:" << err;
 }
-io.save("/path/out.gdb", data, &err);      // Garmin GDB (по умолчанию версия 3 = UTF-8)
+io.save("/path/out.gdb", data, &err);      // Garmin GDB (версия 3 = UTF-8)
 io.save("/path/out.geojson", data, &err);  // GeoJSON FeatureCollection (.json — синоним)
-
-// GDB версии 2 (старый MapSource):
-geo::SaveOptions v2;
-v2.gdbVersion = 2;
-io.save("/path/out_v2.gdb", data, v2, &err);
 ```
 
 Пишутся точки и маршруты; существующий файл перезаписывается. Особенности:
 
-- **GDB** по умолчанию пишется **версией 3** (строки UTF-8). Через
-  `SaveOptions{2}` можно записать **версию 2**: строки при этом кодируются в
-  **Windows-1251** (как делает русский MapSource), так что кириллица выживает и
-  там — символы, которых нет в CP1251, заменяются на `?`. Координаты в GDB
-  хранятся как 32-битные semicircles — квантование ~3 мм.
-- Маршрут с `isTrack = true` записывается **треком** (`trk`), без него —
-  маршрутом (`rte`); `parse()` выставляет флаг при чтении, так что
-  прочитанный трек при перезаписи остаётся треком.
+- **GDB** всегда пишется **версией 3** (строки UTF-8), поэтому кириллица
+  сохраняется без плясок с кодировками. Координаты в GDB хранятся как 32-битные
+  semicircles — квантование ~3 мм.
 - **GeoJSON** не имеет понятия «маршрут», поэтому маршруты записываются как
   `LineString` (в терминах GPSBabel — треки). Вершины `LineString` безымянные,
   так что при обратном чтении они не склеиваются с одноимёнными точками.
 - При чтении (`parse`) **треки** из любых форматов теперь тоже возвращаются в
   `GeoData::routes`, наравне с маршрутами.
-
-## Полнота при перезаписи: fidelity-payload
-
-Цикл «прочитать файл → отредактировать часть полей → сохранить» **не теряет**
-информацию, которой нет в простой модели. `parse()` прикрепляет к каждой точке
-и каждому маршруту/треку **непрозрачный payload** — полную копию того, что
-прочитал GPSBabel (иконки, категории, классы точек, времена создания, времена и
-скорости точек трека, разбиение на `trkseg`, геометрию автопрокладки маршрутов
-GDB, GPX-расширения `gpxx:*`, цвет/стиль линии, URL...). `save()` берёт payload
-за основу и накладывает поверх только редактируемые поля (`name`,
-`description`, `lat/lon`, `altitude`).
-
-Ваш код при этом не меняется: работаете с теми же простыми полями, payload
-переносится автоматически. Точка, созданная в рантайме (без payload), пишется
-«с нуля», как раньше.
-
-Свойства и границы:
-
-- **Служебные точки** помечаются `standalone = false`: это точки треков,
-  скрытые точки автопрокладки MapSource (класс точки ≠ 0 — их MapSource тоже
-  не показывает в списке путевых точек) и точки, живущие только внутри
-  маршрута. При сохранении они не превращаются в видимые путевые точки:
-  скрытые записи списка файла восстанавливаются скрытыми, остальные пишутся
-  внутри своих маршрутов/треков. **В GUI показывайте только
-  `p.standalone == true`** — иначе список точек «зальёт» точками треков:
-
-  ```cpp
-  for (const geo::GeoPoint& p : data.points) {
-      if (!p.standalone) continue;   // точки треков пропускаем
-      addRowToTable(p);
-  }
-  ```
-- Если треки не нужны вовсе — `ParseOptions po; po.includeTracks = false;
-  parser.parse(path, data, po, &err);` — точки из треков тогда не создаются.
-  ⚠️ Но данные, прочитанные без треков, при `save()` поверх исходного файла
-  **потеряют его треки** — для сценария «открыл-правил-сохранил» используйте
-  фильтр по `standalone`, а не эту опцию.
-- Проверено тестами: пересохранение реального файла MapSource **байт-в-байт
-  идемпотентно** (A → B → B == A), в GPX выживают `sym`, `<time>` точки,
-  времена точек трека и второй `<trkseg>`; правка имени при этом применяется.
-- Полная полнота — в паре «формат → тот же формат» (gdb→gdb, gpx→gpx). При
-  конвертации (gdb→gpx) сохранится то, что умеет целевой формат; GeoJSON
-  беднее всех — там payload почти не используется.
-- Если **изменён состав/порядок точек** маршрута или трека, по-точечный
-  payload этой линии (геометрия автопрокладки, времена) применить нельзя —
-  такие точки пишутся из их собственных payload'ов/«с нуля» (MapSource
-  пересчитает автопрокладку сам).
-- Результат семантически полный, но не обязан быть побайтово равен
-  **исходному** файлу MapSource (порядок незначащих полей может отличаться);
-  повторные пересохранения нашим модулем уже побайтово стабильны.
 
 ## GUI-пример (drag-and-drop)
 
