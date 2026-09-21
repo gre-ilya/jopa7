@@ -51,6 +51,17 @@ struct GeoData {
   bool isEmpty() const { return points.isEmpty() && routes.isEmpty(); }
 };
 
+/* Options for GeoFileParser::save(). */
+struct SaveOptions {
+  /*
+   * GDB version to write: 3 (default; strings are UTF-8) or 2 (legacy
+   * MapSource; strings are written in the Windows-1251 codepage so Cyrillic
+   * survives -- symmetric to how parse() reads v1/v2 files).  Ignored for
+   * non-GDB outputs.
+   */
+  int gdbVersion = 3;
+};
+
 /*
  * GeoFileParser converts a geo file (Garmin .gdb, GPX, GeoJSON) into the
  * plain GeoData model above, and can save a GeoData back to a file.
@@ -81,6 +92,10 @@ public:
    * human readable reason.
    */
   bool save(const QString& filePath, const GeoData& data, QString* errorMessage = nullptr);
+
+  /* Same, with explicit options (e.g. SaveOptions{2} for a GDB v2 file). */
+  bool save(const QString& filePath, const GeoData& data,
+            const SaveOptions& options, QString* errorMessage = nullptr);
 
   /* File extensions (without the dot, lower case) this parser understands. */
   static QStringList supportedExtensions();

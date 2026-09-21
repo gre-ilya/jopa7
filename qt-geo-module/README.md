@@ -23,6 +23,10 @@ struct GeoRoute {        // маршрут = упорядоченные ссыл
     QVector<int> points; // индексы в GeoData::points; индекс может повторяться
 };
 
+struct SaveOptions {
+    int gdbVersion = 3;  // версия GDB при сохранении: 3 (UTF-8) или 2 (CP1251)
+};
+
 struct GeoData {
     QVector<GeoPoint> points;   // общий пул уникальных точек
     QVector<GeoRoute> routes;   // маршруты ссылаются на points по индексу
@@ -32,6 +36,8 @@ class GeoFileParser {
 public:
     bool parse(const QString& filePath, GeoData& out, QString* error = nullptr);
     bool save(const QString& filePath, const GeoData& data, QString* error = nullptr);
+    bool save(const QString& filePath, const GeoData& data,
+              const SaveOptions& options, QString* error = nullptr);
     static QStringList supportedExtensions();      // что умеет parse()
     static QStringList supportedSaveExtensions();  // что умеет save()
     static bool isSupported(const QString& filePath);
@@ -142,13 +148,20 @@ if (!io.save("/path/out.gpx", data, &err)) {     // GPX 1.0
 }
 io.save("/path/out.gdb", data, &err);      // Garmin GDB (версия 3 = UTF-8)
 io.save("/path/out.geojson", data, &err);  // GeoJSON FeatureCollection (.json — синоним)
+
+// GDB версии 2 (старый MapSource):
+geo::SaveOptions v2;
+v2.gdbVersion = 2;
+io.save("/path/out_v2.gdb", data, v2, &err);
 ```
 
 Пишутся точки и маршруты; существующий файл перезаписывается. Особенности:
 
-- **GDB** всегда пишется **версией 3** (строки UTF-8), поэтому кириллица
-  сохраняется без плясок с кодировками. Координаты в GDB хранятся как 32-битные
-  semicircles — квантование ~3 мм.
+- **GDB** по умолчанию пишется **версией 3** (строки UTF-8). Через
+  `SaveOptions{2}` можно записать **версию 2**: строки при этом кодируются в
+  **Windows-1251** (как делает русский MapSource), так что кириллица выживает и
+  там; символы, которых нет в CP1251, заменяются на `?`. Координаты в GDB
+  хранятся как 32-битные semicircles — квантование ~3 мм.
 - **GeoJSON** не имеет понятия «маршрут», поэтому маршруты записываются как
   `LineString` (в терминах GPSBabel — треки). Вершины `LineString` безымянные,
   так что при обратном чтении они не склеиваются с одноимёнными точками.

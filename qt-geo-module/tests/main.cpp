@@ -11,6 +11,7 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QFile>
 #include <QString>
 #include <QTemporaryDir>
 
@@ -129,6 +130,44 @@ int main(int argc, char** argv)
       check(dlat < 1e-6, QStringLiteral(".%1: latitude round-trips").arg(ext));
       check(!back.routes.isEmpty() && back.routes[0].points.size() == 3,
             QStringLiteral(".%1: route with 3 points survives").arg(ext));
+    }
+
+    // ---- GDB version 2 (legacy MapSource, CP1251 strings).
+    {
+      const QString out2 = tmp.filePath(QStringLiteral("out_v2.gdb"));
+      QString serr;
+      geo::SaveOptions opts;
+      opts.gdbVersion = 2;
+      check(parser.save(out2, src, opts, &serr),
+            QStringLiteral("save GDB v2 (%1)").arg(serr));
+
+      // The header must carry the v2 letter: "MsRcf\0" + reclen + 'D' + 'l'.
+      QFile f(out2);
+      check(f.open(QIODevice::ReadOnly), QStringLiteral("v2: open for header"));
+      const QByteArray head = f.read(12);
+      check(head.size() == 12 && head.at(10) == 'D' && head.at(11) == 'l',
+            QStringLiteral("v2: header version letter is 'l' (GDB v2)"));
+
+      // Round trip: parse() re-decodes v1/v2 strings from CP1251, so the
+      // Cyrillic names written by the CP1251 encoder must come back intact.
+      geo::GeoData back;
+      check(parser.parse(out2, back, &serr),
+            QStringLiteral("v2: re-parse (%1)").arg(serr));
+      bool cyr = false;
+      for (const geo::GeoPoint& p : back.points) {
+        if (p.name == a.name && p.description == a.description) {
+          cyr = true;
+        }
+      }
+      check(cyr, QStringLiteral("v2: Cyrillic name+description survive CP1251"));
+      check(!back.routes.isEmpty() &&
+                back.routes[0].name == r.name &&
+                back.routes[0].points.size() == 3,
+            QStringLiteral("v2: Cyrillic route with 3 points survives"));
+
+      // An unsupported version must be refused up front.
+      check(!parser.save(out2, src, geo::SaveOptions{7}, &serr),
+            QStringLiteral("v2: version 7 rejected (%1)").arg(serr));
     }
   }
 
