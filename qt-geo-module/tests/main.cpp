@@ -128,8 +128,38 @@ int main(int argc, char** argv)
       check(cyr, QStringLiteral(".%1: Cyrillic point name survives").arg(ext));
       // GDB stores coordinates as 32-bit semicircles (~3 mm quantization).
       check(dlat < 1e-6, QStringLiteral(".%1: latitude round-trips").arg(ext));
+      // GeoJSON writes the route as a LineString, which its reader maps
+      // back onto a route (only MultiLineString becomes a track), so the
+      // route survives for every format even though tracks are ignored.
       check(!back.routes.isEmpty() && back.routes[0].points.size() == 3,
             QStringLiteral(".%1: route with 3 points survives").arg(ext));
+    }
+
+    // ---- Tracks are ignored on parse: a GPX with one waypoint and a
+    // 3-point track must yield exactly one point and no routes.
+    {
+      const QString trkIn = tmp.filePath(QStringLiteral("trk_in.gpx"));
+      QFile f(trkIn);
+      check(f.open(QIODevice::WriteOnly), QStringLiteral("tracks: write input"));
+      f.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+              "<gpx version=\"1.0\" creator=\"t\">\n"
+              "<wpt lat=\"55.7\" lon=\"37.6\"><name>WPT1</name></wpt>\n"
+              "<trk><name>T</name><trkseg>\n"
+              "<trkpt lat=\"55.0\" lon=\"37.0\"/>"
+              "<trkpt lat=\"55.1\" lon=\"37.1\"/>"
+              "<trkpt lat=\"55.2\" lon=\"37.2\"/>\n"
+              "</trkseg></trk></gpx>\n");
+      f.close();
+      geo::GeoData back;
+      QString serr;
+      check(parser.parse(trkIn, back, &serr),
+            QStringLiteral("tracks: parse (%1)").arg(serr));
+      check(back.points.size() == 1 &&
+                back.points[0].name == QLatin1String("WPT1"),
+            QStringLiteral("tracks: only the waypoint is parsed (%1 pts)")
+                .arg(back.points.size()));
+      check(back.routes.isEmpty(),
+            QStringLiteral("tracks: no routes from the track"));
     }
 
     // ---- GDB version 2 (legacy MapSource, CP1251 strings).

@@ -38,7 +38,6 @@
 // so we (re)declare them here at global scope to iterate over the parse result.
 extern WaypointList* global_waypoint_list;
 extern RouteList* global_route_list;
-extern RouteList* global_track_list;
 
 namespace geo {
 
@@ -386,18 +385,9 @@ bool GeoFileParser::parse(const QString& filePath, GeoData& out, QString* errorM
     out.routes.append(route);
   }
 
-  // 3. Tracks, exposed the same way as routes.  Some formats only have this
-  // notion for an ordered line: e.g. the GeoJSON reader turns every
-  // LineString into a track.
-  for (const route_head* trk : *global_track_list) {
-    GeoRoute route;
-    route.name = fixEncoding(trk->rte_name);
-    route.description = fixEncoding(trk->rte_desc);
-    for (const Waypoint* wpt : trk->waypoint_list) {
-      route.points.append(addPoint(wpt));
-    }
-    out.routes.append(route);
-  }
+  // Tracks are deliberately IGNORED: trackpoints would flood the point pool.
+  // Note this also applies to GeoJSON on read: its reader maps every
+  // LineString onto a track, so lines saved to .geojson do not come back.
 
   // Leave the global lists empty for the next caller.
   clearGlobalLists();
