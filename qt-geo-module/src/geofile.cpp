@@ -214,6 +214,12 @@ GeoPoint toGeoPoint(const Waypoint* wpt)
     p.altitude = wpt->altitude;
     p.hasAltitude = true;
   }
+  // GPSBabel's "unset" creation time is epoch 0 (see gpsbabel::DateTime);
+  // expose it as an invalid QDateTime instead.
+  if (wpt->creation_time.isValid() &&
+      wpt->creation_time.toMSecsSinceEpoch() != 0) {
+    p.time = wpt->GetCreationTime();
+  }
   return p;
 }
 
@@ -470,6 +476,9 @@ bool GeoFileParser::save(const QString& filePath, const GeoData& data,
     w->longitude = p.longitude;
     if (p.hasAltitude) {
       w->altitude = p.altitude;
+    }
+    if (p.time.isValid()) {
+      w->SetCreationTime(gpsbabel::DateTime(p.time));
     }
     waypt_add(w);
     created.append(w);

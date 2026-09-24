@@ -16,6 +16,7 @@
 #ifndef GEOFILE_H_INCLUDED_
 #define GEOFILE_H_INCLUDED_
 
+#include <QDateTime>
 #include <QString>
 #include <QStringList>
 #include <QVector>
@@ -30,6 +31,12 @@ struct GeoPoint {
   double  longitude = 0.0;  /* degrees, WGS84 */
   double  altitude  = 0.0;  /* meters; only meaningful if hasAltitude       */
   bool    hasAltitude = false;
+  /*
+   * Creation time of the point (GPX <time>, GDB timestamp), UTC.
+   * Invalid (default) when the file carries no time; such points are also
+   * written without a time.
+   */
+  QDateTime time;
 };
 
 /*

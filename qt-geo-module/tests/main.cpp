@@ -162,6 +162,68 @@ int main(int argc, char** argv)
             QStringLiteral("tracks: no routes from the track"));
     }
 
+    // ---- Point creation time: read from GPX, written back to GPX and GDB.
+    {
+      const QString tIn = tmp.filePath(QStringLiteral("time_in.gpx"));
+      QFile f(tIn);
+      check(f.open(QIODevice::WriteOnly), QStringLiteral("time: write input"));
+      f.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+              "<gpx version=\"1.0\" creator=\"t\">\n"
+              "<wpt lat=\"55.7\" lon=\"37.6\"><time>2020-05-01T10:20:30Z</time>"
+              "<name>Timed</name></wpt>\n"
+              "<wpt lat=\"55.8\" lon=\"37.7\"><name>NoTime</name></wpt>\n"
+              "</gpx>\n");
+      f.close();
+
+      const QDateTime expected =
+          QDateTime::fromString(QStringLiteral("2020-05-01T10:20:30Z"), Qt::ISODate);
+      geo::GeoData d;
+      QString serr;
+      check(parser.parse(tIn, d, &serr),
+            QStringLiteral("time: parse (%1)").arg(serr));
+      QDateTime got;
+      bool noTimeIsInvalid = false;
+      for (const geo::GeoPoint& p : d.points) {
+        if (p.name == QLatin1String("Timed")) {
+          got = p.time;
+        }
+        if (p.name == QLatin1String("NoTime")) {
+          noTimeIsInvalid = !p.time.isValid();
+        }
+      }
+      check(got.isValid() && got.toUTC() == expected,
+            QStringLiteral("time: parsed from GPX (%1)").arg(got.toString(Qt::ISODate)));
+      check(noTimeIsInvalid,
+            QStringLiteral("time: point without <time> stays invalid"));
+
+      // GPX -> GPX
+      const QString tOutGpx = tmp.filePath(QStringLiteral("time_out.gpx"));
+      check(parser.save(tOutGpx, d, &serr),
+            QStringLiteral("time: save gpx (%1)").arg(serr));
+      QFile fo(tOutGpx);
+      fo.open(QIODevice::ReadOnly);
+      const QString gpxText = QString::fromUtf8(fo.readAll());
+      check(gpxText.contains(QLatin1String("2020-05-01T10:20:30Z")),
+            QStringLiteral("time: written to GPX"));
+
+      // GPX -> GDB -> parse (GDB stores whole seconds)
+      const QString tOutGdb = tmp.filePath(QStringLiteral("time_out.gdb"));
+      check(parser.save(tOutGdb, d, &serr),
+            QStringLiteral("time: save gdb (%1)").arg(serr));
+      geo::GeoData back;
+      check(parser.parse(tOutGdb, back, &serr),
+            QStringLiteral("time: re-parse gdb (%1)").arg(serr));
+      QDateTime gdbGot;
+      for (const geo::GeoPoint& p : back.points) {
+        if (p.name == QLatin1String("Timed")) {
+          gdbGot = p.time;
+        }
+      }
+      check(gdbGot.isValid() &&
+                gdbGot.toSecsSinceEpoch() == expected.toSecsSinceEpoch(),
+            QStringLiteral("time: survives GDB round trip"));
+    }
+
     // ---- GDB version 2 (legacy MapSource, CP1251 strings).
     {
       const QString out2 = tmp.filePath(QStringLiteral("out_v2.gdb"));
